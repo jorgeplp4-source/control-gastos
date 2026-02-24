@@ -3,7 +3,7 @@ import { useMemo } from 'react'
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import { N1_COLORS, CHART_COLORS, fmt, uniq } from '../lib/constants'
 
-export default function Dashboard({ gastos }) {
+export default function Dashboard({ gastos, onNavigate }) {
   const total = gastos.reduce((s, g) => s + (g.monto || 0), 0)
 
   const byN1 = useMemo(() => {
@@ -33,10 +33,43 @@ export default function Dashboard({ gastos }) {
   const dias = uniq(gastos.map(g => g.fecha)).length || 1
 
   if (!gastos.length) return (
-    <div style={{ textAlign: 'center', padding: '80px 20px' }}>
-      <div style={{ fontSize: 64 }}>📊</div>
-      <h2 style={{ color: '#64748b', marginTop: 12 }}>Sin datos todavía</h2>
-      <p style={{ color: '#94a3b8' }}>Registrá tu primer gasto para ver el dashboard</p>
+    <div style={{ maxWidth: 600, margin: '0 auto', padding: '20px 0' }}>
+      {/* Hero vacío */}
+      <div style={{ textAlign: 'center', padding: '40px 20px 32px', background: 'var(--surface)', borderRadius: 20, boxShadow: 'var(--shadow)', marginBottom: 20 }}>
+        <div style={{ fontSize: 64, marginBottom: 12 }}>📊</div>
+        <h2 style={{ color: 'var(--text-primary)', margin: '0 0 8px', fontWeight: 800 }}>¡Empezá a registrar!</h2>
+        <p style={{ color: 'var(--text-muted)', fontSize: 14, margin: 0, lineHeight: 1.6 }}>
+          Tu dashboard aparecerá aquí con gráficos y estadísticas<br />una vez que registres tu primer gasto.
+        </p>
+      </div>
+
+      {/* Acciones rápidas */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: 12, marginBottom: 20 }}>
+        {[
+          { icon: '➕', titulo: 'Registrar un gasto', desc: 'Anotá tu primer gasto ahora', color: '#3b82f6', tab: 'registro' },
+          { icon: '🔁', titulo: 'Configurar recurrentes', desc: 'Automatizá gastos fijos', color: '#d97706', tab: 'configuracion' },
+        ].map(a => (
+          <button key={a.tab} onClick={() => onNavigate?.(a.tab)}
+            style={{ padding: '20px', borderRadius: 16, border: `2px solid ${a.color}30`, background: `${a.color}08`, cursor: 'pointer', textAlign: 'left', display: 'flex', gap: 14, alignItems: 'center' }}>
+            <div style={{ width: 44, height: 44, borderRadius: 12, background: `${a.color}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0 }}>{a.icon}</div>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-primary)' }}>{a.titulo}</div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{a.desc}</div>
+            </div>
+          </button>
+        ))}
+      </div>
+
+      {/* Tip */}
+      <div style={{ background: 'var(--accent-light)', borderRadius: 12, padding: '14px 18px', border: '1px solid var(--accent)', display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+        <span style={{ fontSize: 20 }}>💡</span>
+        <div>
+          <p style={{ margin: 0, fontSize: 13, color: 'var(--accent)', fontWeight: 700 }}>Tip: usá el acceso rápido</p>
+          <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+            Agregá la app a tu pantalla de inicio y usá el shortcut "⚡ Gasto rápido" para registrar en segundos sin abrir el browser.
+          </p>
+        </div>
+      </div>
     </div>
   )
 

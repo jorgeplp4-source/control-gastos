@@ -24,6 +24,7 @@ const RecurrentesPage = dynamic(() => import('../components/RecurrentesPage'),  
 // RecurrentesPage se renderiza dentro de ConfigPage, este import es para pre-cargar
 const ConfigPage      = dynamic(() => import('../components/ConfigPage'),        { ssr: false, loading: () => <Spinner label="Cargando configuración…" /> })
 const NotificationsBell = dynamic(() => import('../components/NotificationsBell'), { ssr: false })
+const Onboarding = dynamic(() => import('../components/Onboarding'), { ssr: false })
 
 export default function Home() {
   const [tab, setTab] = useState('dashboard')
@@ -183,9 +184,12 @@ export default function Home() {
         ))}
       </nav>
 
+      {/* ONBOARDING — solo para usuarios nuevos */}
+      <Onboarding onComplete={() => setTab('registro')} />
+
       {/* MAIN CONTENT */}
       <main style={{ maxWidth: 1200, margin: '0 auto', padding: '24px 16px 80px' }}>
-        {tab === 'dashboard'    && <Dashboard gastos={gastos} />}
+        {tab === 'dashboard'    && <Dashboard gastos={gastos} onNavigate={setTab} />}
         {tab === 'registro'     && (
           <ExpenseForm
             key={editTarget?.id || 'new'}
