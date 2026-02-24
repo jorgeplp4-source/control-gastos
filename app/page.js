@@ -1,16 +1,28 @@
-// app/page.js — REEMPLAZÁ tu page.js principal con este
-// Integra todos los módulos: Config, Recurrentes, Quick Add, Notificaciones
 'use client'
 import { useState, useEffect } from 'react'
+import dynamic from 'next/dynamic'
 import { createClient } from '../lib/supabase-browser'
 import { useRouter } from 'next/navigation'
 import { useApp } from '../context/AppContext'
-import Dashboard from '../components/Dashboard'
-import ExpenseForm from '../components/ExpenseForm'
-import ListView from '../components/ListView'
-import RecurrentesPage from '../components/RecurrentesPage'
-import ConfigPage from '../components/ConfigPage'
-import NotificationsBell from '../components/NotificationsBell'
+
+// ── Lazy loading: cada componente se descarga solo cuando el usuario
+//    navega a esa pestaña. Recharts (~150kb) no bloquea el inicio. ──
+function Spinner({ label = 'Cargando…' }) {
+  return (
+    <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)' }}>
+      <div style={{ fontSize: 36, marginBottom: 10, display: 'inline-block', animation: 'spin 1s linear infinite' }}>⟳</div>
+      <p style={{ fontWeight: 600, fontSize: 14, marginTop: 8 }}>{label}</p>
+      <style>{`@keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }`}</style>
+    </div>
+  )
+}
+
+const Dashboard       = dynamic(() => import('../components/Dashboard'),        { ssr: false, loading: () => <Spinner label="Cargando dashboard…" /> })
+const ExpenseForm     = dynamic(() => import('../components/ExpenseForm'),       { ssr: false, loading: () => <Spinner label="Cargando formulario…" /> })
+const ListView        = dynamic(() => import('../components/ListView'),          { ssr: false, loading: () => <Spinner label="Cargando listado…" /> })
+const RecurrentesPage = dynamic(() => import('../components/RecurrentesPage'),  { ssr: false, loading: () => <Spinner label="Cargando recurrentes…" /> })
+const ConfigPage      = dynamic(() => import('../components/ConfigPage'),        { ssr: false, loading: () => <Spinner label="Cargando configuración…" /> })
+const NotificationsBell = dynamic(() => import('../components/NotificationsBell'), { ssr: false })
 
 export default function Home() {
   const [tab, setTab] = useState('dashboard')
@@ -30,13 +42,26 @@ export default function Home() {
   }
 
   useEffect(() => {
+    // Timeout de seguridad: si en 10s no responde, redirige al login
+    // Evita la pantalla de carga infinita en móvil con red lenta
+    const timeout = setTimeout(() => {
+      router.push('/login')
+    }, 10000)
+
     supabase.auth.getUser().then(({ data: { user } }) => {
+      clearTimeout(timeout)
       if (!user) { router.push('/login'); return }
       setUser(user)
       fetch('/api/gastos')
         .then(r => r.json())
         .then(data => { setGastos(Array.isArray(data) ? data : []); setLoading(false) })
+        .catch(() => setLoading(false))
+    }).catch(() => {
+      clearTimeout(timeout)
+      router.push('/login')
     })
+
+    return () => clearTimeout(timeout)
   }, [])
 
   const handleSave = async (form) => {

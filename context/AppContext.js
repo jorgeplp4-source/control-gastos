@@ -89,34 +89,31 @@ export function AppProvider({ children }) {
   // ── Load settings from Supabase ──
   useEffect(() => {
     const init = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { setLoadingSettings(false); return }
+      // Primero obtenemos el usuario
+      const { data: { user }, error: userError } = await supabase.auth.getUser()
+      if (!user || userError) { setLoadingSettings(false); return }
 
-      const { data } = await supabase
-        .from('user_settings')
-        .select('*')
-        .eq('user_id', user.id)
-        .single()
+      // Luego settings y notificaciones EN PARALELO (antes eran 3 llamadas en serie)
+      const [settingsRes, notifRes] = await Promise.all([
+        supabase.from('user_settings').select('*').eq('user_id', user.id).single(),
+        supabase.from('notificaciones')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', user.id)
+          .eq('leida', false),
+      ])
 
-      const merged = { ...DEFAULT_SETTINGS, ...(data || {}) }
+      const merged = { ...DEFAULT_SETTINGS, ...(settingsRes.data || {}) }
       setSettings(merged)
+      setNotifCount(notifRes.count || 0)
 
-      // Apply theme immediately
-      applyTheme(merged.theme)
+      // Tema: aplicar inmediatamente desde localStorage si existe (evita flash)
+      const savedTheme = localStorage.getItem('theme') || merged.theme
+      applyTheme(savedTheme)
 
-      // Load i18n
-      const msgs = await loadMessages(merged.language)
-      setMessages(msgs)
-
-      // Unread notifications count
-      const { count } = await supabase
-        .from('notificaciones')
-        .select('id', { count: 'exact', head: true })
-        .eq('user_id', user.id)
-        .eq('leida', false)
-      setNotifCount(count || 0)
-
+      // i18n: cargar en paralelo con lo anterior hubiera requerido el idioma,
+      // así que va después pero sin bloquear el render (setLoadingSettings primero)
       setLoadingSettings(false)
+      loadMessages(merged.language).then(msgs => setMessages(msgs))
     }
     init()
   }, [])
@@ -135,6 +132,7 @@ export function AppProvider({ children }) {
       theme === 'dark' ||
       (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
     document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light')
+    localStorage.setItem('theme', theme)
   }
 
   // ── Save settings ──
