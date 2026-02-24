@@ -21,6 +21,7 @@ const Dashboard       = dynamic(() => import('../components/Dashboard'),        
 const ExpenseForm     = dynamic(() => import('../components/ExpenseForm'),       { ssr: false, loading: () => <Spinner label="Cargando formulario…" /> })
 const ListView        = dynamic(() => import('../components/ListView'),          { ssr: false, loading: () => <Spinner label="Cargando listado…" /> })
 const RecurrentesPage = dynamic(() => import('../components/RecurrentesPage'),  { ssr: false, loading: () => <Spinner label="Cargando recurrentes…" /> })
+// RecurrentesPage se renderiza dentro de ConfigPage, este import es para pre-cargar
 const ConfigPage      = dynamic(() => import('../components/ConfigPage'),        { ssr: false, loading: () => <Spinner label="Cargando configuración…" /> })
 const NotificationsBell = dynamic(() => import('../components/NotificationsBell'), { ssr: false })
 
@@ -66,19 +67,37 @@ export default function Home() {
 
   const handleSave = async (form) => {
     const isEdit = !!form.id
+    // Separar datos de recurrencia antes de enviar el gasto
+    const { _recurrente, ...gastoData } = form
+
     const res = await fetch('/api/gastos', {
       method: isEdit ? 'PUT' : 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form),
+      body: JSON.stringify(gastoData),
     })
     const record = await res.json()
+
+    // Si viene con recurrencia, guardarla en paralelo
+    if (_recurrente && record.id) {
+      fetch('/api/recurrentes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          n1: gastoData.n1, n2: gastoData.n2, n3: gastoData.n3, n4: gastoData.n4,
+          monto: gastoData.monto, unidad: gastoData.unidad,
+          observaciones: gastoData.observaciones,
+          ..._recurrente,
+        }),
+      })
+    }
+
     setGastos(prev => {
       const rest = prev.filter(g => g.id !== record.id)
       return [record, ...rest].sort((a, b) => b.fecha.localeCompare(a.fecha))
     })
     setEditTarget(null)
     setTab('listado')
-    showToast(isEdit ? 'Gasto actualizado ✓' : 'Gasto registrado ✓')
+    showToast(isEdit ? 'Gasto actualizado ✓' : _recurrente ? 'Gasto registrado + recurrencia creada ✓' : 'Gasto registrado ✓')
   }
 
   const handleDelete = async (id) => {
@@ -96,7 +115,6 @@ export default function Home() {
     { id: 'dashboard',    label: t('nav.dashboard') || 'Dashboard',     icon: '📊' },
     { id: 'registro',     label: t('nav.registro') || 'Registrar',       icon: '➕' },
     { id: 'listado',      label: t('nav.listado') || 'Listado',          icon: '📋' },
-    { id: 'recurrentes',  label: t('nav.recurrentes') || 'Recurrentes',  icon: '🔁' },
     { id: 'configuracion',label: t('nav.configuracion') || 'Config',     icon: '⚙️' },
   ]
 
@@ -177,7 +195,6 @@ export default function Home() {
           />
         )}
         {tab === 'listado'      && <ListView gastos={gastos} onDelete={handleDelete} onEdit={(g) => { setEditTarget(g); setTab('registro') }} />}
-        {tab === 'recurrentes'  && <RecurrentesPage />}
         {tab === 'configuracion'&& <ConfigPage />}
       </main>
     </div>
