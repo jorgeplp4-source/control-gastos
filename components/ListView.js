@@ -1,6 +1,6 @@
 'use client'
 import { useState, useMemo } from 'react'
-import { N1_COLORS, fmt, fmtDate, uniq } from '../lib/constants'
+import { N1_COLORS, fmt, fmtDate, uniq, PERIODOS, getPeriodo } from '../lib/constants'
 import { useApp } from '../context/AppContext'
 import {
   IconEditar, IconEliminar, IconBuscar, IconCerrar,
@@ -9,30 +9,6 @@ import {
   IconAdvertencia,
 } from '../lib/icons'
 
-function getPeriodo(id) {
-  const hoy = new Date()
-  const pad  = n => String(n).padStart(2,'0')
-  const iso  = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`
-  switch(id){
-    case 'hoy':     { const s=iso(hoy); return {from:s,to:s} }
-    case 'semana':  { const l=new Date(hoy); l.setDate(hoy.getDate()-((hoy.getDay()+6)%7)); return {from:iso(l),to:iso(hoy)} }
-    case '7dias':   { const d=new Date(hoy); d.setDate(d.getDate()-6); return {from:iso(d),to:iso(hoy)} }
-    case 'mes':     { return {from:`${hoy.getFullYear()}-${pad(hoy.getMonth()+1)}-01`,to:iso(hoy)} }
-    case 'mes_ant': { const m=hoy.getMonth()===0?12:hoy.getMonth(); const y=hoy.getMonth()===0?hoy.getFullYear()-1:hoy.getFullYear(); const u=new Date(hoy.getFullYear(),hoy.getMonth(),0); return {from:`${y}-${pad(m)}-01`,to:iso(u)} }
-    case 'anio':    { return {from:`${hoy.getFullYear()}-01-01`,to:iso(hoy)} }
-    default: return {from:'',to:''}
-  }
-}
-
-const PERIODOS = [
-  { id:'hoy',     label:'Hoy'         },
-  { id:'semana',  label:'Esta semana' },
-  { id:'7dias',   label:'Últ. 7 días' },
-  { id:'mes',     label:'Este mes'    },
-  { id:'mes_ant', label:'Mes anterior'},
-  { id:'anio',    label:'Este año'    },
-  { id:'custom',  label:'Personalizado'},
-]
 
 const COLS = [
   { label:'Fecha',        field:'fecha' },
