@@ -4,8 +4,9 @@ import { createClient } from '../lib/supabase-browser'
 import { useApp } from '../context/AppContext'
 import CategoryEditor from './CategoryEditor'
 import RecurrentesPage from './RecurrentesPage'
+import ItemsPage from './ItemsPage'
 import {
-  IconTema, IconGlobo, IconIdioma, IconEtiquetas, IconRecurrentes,
+  IconTema, IconGlobo, IconIdioma, IconEtiquetas, IconRecurrentes, IconItems,
   IconClaro, IconOscuro, IconSistema, IconExito, IconGuardar, IconConfig,
 } from '../lib/icons'
 
@@ -27,6 +28,7 @@ const SECCIONES = [
   { id:'region',      label:'Regional',            Icon: IconGlobo      },
   { id:'idioma',      label:'Idioma',              Icon: IconIdioma     },
   { id:'categorias',  label:'Categorías',          Icon: IconEtiquetas  },
+  { id:'items',       label:'Mis Ítems',           Icon: IconItems      },
   { id:'recurrentes', label:'Gastos Recurrentes',  Icon: IconRecurrentes},
 ]
 
@@ -120,6 +122,11 @@ export default function ConfigPage() {
           <CategoryEditor />
         </Section>
       )
+      case 'items': return (
+        <Section title="Mis Ítems" Icon={IconItems} subtitle="Ítems guardados al registrar gastos · Editá nombre, unidad y categoría" noSave>
+          <ItemsPage />
+        </Section>
+      )
       case 'recurrentes': return (
         <Section title="Gastos Recurrentes" Icon={IconRecurrentes} noSave>
           <RecurrentesPage />
@@ -128,7 +135,7 @@ export default function ConfigPage() {
     }
   }
 
-  const showSave = seccion !== 'categorias' && seccion !== 'recurrentes'
+  const showSave = seccion !== 'categorias' && seccion !== 'recurrentes' && seccion !== 'items'
 
   return (
     <div style={{ display:'flex', gap:0, minHeight:'60vh', background:'var(--surface)', borderRadius:20, boxShadow:'var(--shadow)', border:'1px solid var(--border)', overflow:'hidden' }}>

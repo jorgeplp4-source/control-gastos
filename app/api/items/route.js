@@ -68,3 +68,45 @@ export async function PATCH(request) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data)
 }
+
+// DELETE /api/items?id=xxx — eliminar ítem del usuario
+export async function DELETE(request) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const { searchParams } = new URL(request.url)
+  const id = searchParams.get('id')
+  if (!id) return NextResponse.json({ error: 'id requerido' }, { status: 400 })
+
+  const { error } = await supabase
+    .from('items')
+    .delete()
+    .eq('id', id)
+    .eq('user_id', user.id)
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ ok: true })
+}
+
+// PUT /api/items — actualizar nombre, unidad y/o categoría de un ítem
+export async function PUT(request) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const { id, nombre, unidad_default, n1, n2, n3, n4 } = await request.json()
+  if (!id) return NextResponse.json({ error: 'id requerido' }, { status: 400 })
+  if (!nombre?.trim()) return NextResponse.json({ error: 'nombre requerido' }, { status: 400 })
+
+  const { data, error } = await supabase
+    .from('items')
+    .update({ nombre: nombre.trim(), unidad_default, n1, n2, n3, n4 })
+    .eq('id', id)
+    .eq('user_id', user.id)
+    .select()
+    .single()
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json(data)
+}
