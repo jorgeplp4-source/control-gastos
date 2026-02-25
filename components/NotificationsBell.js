@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
+import { IconCampana, IconSinCampana } from '../lib/icons'
 import { createClient } from '../lib/supabase-browser'
 import { useApp } from '../context/AppContext'
 
@@ -58,7 +59,7 @@ export default function NotificationsBell() {
   return (
     <div ref={ref} style={{ position: 'relative' }}>
       <button onClick={handleOpen} style={NS.bell} title="Notificaciones">
-        🔔
+        {notifCount > 0 ? <IconCampana size={18} weight="fill" color="#f59e0b" aria-hidden="true" /> : <IconCampana size={18} weight="regular" aria-hidden="true" />}
         {notifCount > 0 && (
           <span style={NS.badge}>{notifCount > 9 ? '9+' : notifCount}</span>
         )}
