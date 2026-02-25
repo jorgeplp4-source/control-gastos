@@ -1,14 +1,12 @@
 'use client'
 import { useState } from 'react'
-import { UNITS } from '../lib/constants'
-import CategorySearch from './CategorySearch'
+import { UNITS, N1_COLORS } from '../lib/constants'
 import ItemSearch from './ItemSearch'
 import {
   IconEditar, IconRegistrar, IconCerrar, IconGuardar,
   IconExito, IconRecurrentes, IconConfig, IconCalendario, IconInfo,
 } from '../lib/icons'
 
-// Ícono Phosphor para cada frecuencia
 const FRECUENCIAS = [
   { val:'mensual',   label:'Mensual',   Icon: IconCalendario },
   { val:'quincenal', label:'Quincenal', Icon: IconCalendario },
@@ -18,35 +16,42 @@ const FRECUENCIAS = [
 
 export default function ExpenseForm({ initial, onSave, onCancel }) {
   const today = new Date().toISOString().split('T')[0]
+
+  // form tiene n1, n2, n3, n4 (n4 = nombre del ítem)
   const blank = { n1:'', n2:'', n3:'', n4:'', cantidad:'', unidad:'unidad', monto:'', fecha:today, observaciones:'' }
-  const [form, setForm]           = useState(initial ? { ...initial } : blank)
-  const [selectedItem, setSelectedItem] = useState(null)   // ítem seleccionado desde ItemSearch
-  const [saving, setSaving]       = useState(false)
-  const [hacerRec, setHacerRec]   = useState(false)
-  const [recForm, setRecForm]     = useState({ frecuencia:'mensual', intervalo_dias:30, fecha_inicio:today, fecha_fin:'', activo:true })
+  const [form, setForm]         = useState(initial ? { ...initial } : blank)
+  const [selectedItem, setSelectedItem] = useState(null)
+  const [saving, setSaving]     = useState(false)
+  const [hacerRec, setHacerRec] = useState(false)
+  const [recForm, setRecForm]   = useState({ frecuencia:'mensual', intervalo_dias:30, fecha_inicio:today, fecha_fin:'', activo:true })
 
   const setRec = (k, v) => setRecForm(p => ({ ...p, [k]:v }))
   const set    = (k, v) => setForm(p => ({ ...p, [k]:v }))
 
-  const handleCategoryChange = (cat) =>
-    setForm(p => ({ ...p, n1:cat.n1||'', n2:cat.n2||'', n3:cat.n3||'', n4:cat.n4||'' }))
-
-  // Cuando el usuario selecciona un ítem desde ItemSearch:
-  // — si tiene categoría asociada, la propaga al formulario
-  // — siempre registra el ítem seleccionado
+  // Cuando se selecciona un ítem:
+  // item.nombre → n4 del gasto
+  // item.n1/n2/n3 → categorías del gasto
   const handleItemChange = (item) => {
     setSelectedItem(item)
-    if (item && item.n4) {
-      setForm(p => ({ ...p, n1:item.n1||p.n1, n2:item.n2||p.n2, n3:item.n3||p.n3, n4:item.n4||p.n4 }))
+    if (item) {
+      setForm(p => ({
+        ...p,
+        n1: item.n1 || p.n1,
+        n2: item.n2 || p.n2,
+        n3: item.n3 || p.n3,
+        n4: item.nombre || p.n4,   // el nombre del ítem va como n4
+      }))
+    } else {
+      // limpiar ítem → limpiar n4 pero mantener categorías
+      setForm(p => ({ ...p, n4: '' }))
     }
   }
 
-  // Autocompleta la unidad cuando el ítem tiene unidad_default
-  // El usuario puede cambiarla manualmente — eso NO modifica el default del ítem
   const handleUnitFromItem = (unidad) => {
     if (unidad) set('unidad', unidad)
   }
 
+  // válido cuando tiene los 3 niveles de categoría, el ítem (n4), cantidad, monto y fecha
   const valid = form.n1 && form.n2 && form.n3 && form.n4 && form.cantidad && form.monto && form.fecha
 
   const handleSubmit = async () => {
@@ -60,8 +65,6 @@ export default function ExpenseForm({ initial, onSave, onCancel }) {
     setSaving(false)
   }
 
-  // Colores activos según categoría N1 seleccionada
-  const { N1_COLORS } = require('../lib/constants')
   const activeColor = (N1_COLORS[form.n1]||{}).bg || '#3b82f6'
 
   const inp = { padding:'10px 14px', border:'1.5px solid var(--border)', borderRadius:10, fontSize:14, background:'var(--surface)', outline:'none', width:'100%', color:'var(--text-primary)', fontFamily:'inherit' }
@@ -89,25 +92,30 @@ export default function ExpenseForm({ initial, onSave, onCancel }) {
             )}
           </div>
 
-          {/* Búsqueda de categorías */}
+          {/* ── Búsqueda de ítem (incluye selección de categoría) ── */}
           <div style={{ background:'var(--surface2)', borderRadius:14, padding:20, marginBottom:22, border:'1px solid var(--border)' }}>
-            <CategorySearch
-              value={{ n1:form.n1, n2:form.n2, n3:form.n3, n4:form.n4 }}
-              onChange={handleCategoryChange}
-            />
-          </div>
-
-          {/* Búsqueda de ítem específico */}
-          <div style={{ marginBottom:22 }}>
             <ItemSearch
               value={selectedItem}
               onChange={handleItemChange}
               onUnitChange={handleUnitFromItem}
-              category={{ n1:form.n1, n2:form.n2, n3:form.n3, n4:form.n4 }}
             />
-            <p style={{ fontSize:11, color:'var(--text-muted)', margin:'5px 0 0', fontStyle:'italic' }}>
-              Opcional — asociá un ítem para autocompletar la unidad y reutilizarlo en registros futuros
-            </p>
+            {/* Resumen de categoría seleccionada */}
+            {form.n1 && form.n2 && form.n3 && !selectedItem && (
+              <div style={{ marginTop:10, display:'flex', gap:4, alignItems:'center', flexWrap:'wrap' }}>
+                <span style={{ fontSize:11, color:'var(--text-muted)' }}>Categoría:</span>
+                {[form.n1, form.n2, form.n3].map((x,i) => (
+                  <span key={i} style={{ fontSize:11, fontWeight:700, color:(N1_COLORS[form.n1]||{}).text||'var(--accent)', display:'flex', alignItems:'center', gap:3 }}>
+                    {x}{i<2 && <span style={{ opacity:.4, marginLeft:3 }}>›</span>}
+                  </span>
+                ))}
+              </div>
+            )}
+            {/* Si hay ítem seleccionado pero no tiene categorías completas, avisar */}
+            {selectedItem && !(form.n1 && form.n2 && form.n3) && (
+              <p style={{ fontSize:11, color:'#d97706', marginTop:8, fontWeight:600 }}>
+                ⚠ Este ítem no tiene categoría asignada — editalo en Configuración → Mis Ítems
+              </p>
+            )}
           </div>
 
           {/* Campos principales */}
@@ -127,7 +135,6 @@ export default function ExpenseForm({ initial, onSave, onCancel }) {
           {!initial && (
             <div style={{ marginTop:20, borderRadius:14, border:`1.5px solid ${hacerRec ? activeColor : 'var(--border)'}`, overflow:'hidden', transition:'border-color .2s' }}>
               <label style={{ display:'flex', alignItems:'center', gap:12, padding:'14px 18px', cursor:'pointer', background:hacerRec?`${activeColor}12`:'var(--surface2)', transition:'background .2s', userSelect:'none' }}>
-                {/* Toggle switch */}
                 <div style={{ position:'relative', width:44, height:24, flexShrink:0, cursor:'pointer' }} onClick={() => setHacerRec(p=>!p)} role="switch" aria-checked={hacerRec} tabIndex={0} onKeyDown={e=>e.key==='Enter'&&setHacerRec(p=>!p)} aria-label="Hacer recurrente">
                   <div style={{ position:'absolute', inset:0, borderRadius:12, background:hacerRec?activeColor:'var(--border)', transition:'background .2s' }} />
                   <div style={{ position:'absolute', top:3, left:hacerRec?23:3, width:18, height:18, borderRadius:'50%', background:'#fff', boxShadow:'0 1px 4px rgba(0,0,0,.25)', transition:'left .2s' }} />

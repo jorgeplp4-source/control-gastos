@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { UNITS, N1_COLORS } from '../lib/constants'
-import CategorySearch from './CategorySearch'
+import { UNITS, N1_COLORS, uniq } from '../lib/constants'
+import { useCategories } from '../lib/useCategories'
 import {
   IconItems, IconBuscar, IconEditar, IconEliminar, IconGuardar,
   IconCerrar, IconSpinner, IconExito, IconAdvertencia, IconError,
@@ -35,7 +35,7 @@ function UnitSelect({ value, onChange, style = {} }) {
 
 // ── Fila de ítem — vista normal ───────────────────────────────────────────────
 function ItemRow({ item, onEdit, onDelete }) {
-  const cat = [item.n1, item.n2, item.n3, item.n4].filter(Boolean)
+  const cat = [item.n1, item.n2, item.n3].filter(Boolean)
   return (
     <div style={{
       display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px',
@@ -94,16 +94,22 @@ function ItemRow({ item, onEdit, onDelete }) {
 
 // ── Modal de edición ──────────────────────────────────────────────────────────
 function EditModal({ item, onSave, onClose }) {
+  const { categories } = useCategories()
   const [form, setForm] = useState({
-    nombre:        item.nombre        || '',
+    nombre:         item.nombre         || '',
     unidad_default: item.unidad_default || 'unidad',
-    n1: item.n1 || '', n2: item.n2 || '', n3: item.n3 || '', n4: item.n4 || '',
+    n1: item.n1 || '', n2: item.n2 || '', n3: item.n3 || '',
   })
-  const [saving, setSaving]   = useState(false)
-  const [error, setError]     = useState(null)
+  const [saving, setSaving] = useState(false)
+  const [error, setError]   = useState(null)
 
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
-  const valid = form.nombre.trim().length >= 2
+  const valid = form.nombre.trim().length >= 2 && form.n1 && form.n2 && form.n3
+
+  // Opciones de cascada
+  const opts_n1 = useMemo(() => uniq(categories.map(c => c.n1)), [categories])
+  const opts_n2 = useMemo(() => form.n1 ? uniq(categories.filter(c => c.n1 === form.n1).map(c => c.n2)) : [], [categories, form.n1])
+  const opts_n3 = useMemo(() => form.n2 ? uniq(categories.filter(c => c.n1 === form.n1 && c.n2 === form.n2).map(c => c.n3)) : [], [categories, form.n1, form.n2])
 
   const handleSave = async () => {
     if (!valid) return
@@ -125,79 +131,72 @@ function EditModal({ item, onSave, onClose }) {
     }
   }
 
-  // Cerrar con Escape
   useEffect(() => {
     const handler = (e) => { if (e.key === 'Escape') onClose() }
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
   }, [onClose])
 
+  const inp = { width: '100%', padding: '10px 14px', border: '1.5px solid var(--border)', borderRadius: 10, fontSize: 14, background: 'var(--surface)', color: 'var(--text-primary)', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }
+  const lbl = { display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }
+
   return (
     <div
       role="dialog" aria-modal="true" aria-label="Editar ítem"
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
-      style={{
-        position: 'fixed', inset: 0, zIndex: 1000,
-        background: 'rgba(0,0,0,0.45)', display: 'flex',
-        alignItems: 'center', justifyContent: 'center', padding: 20,
-      }}>
-      <div style={{
-        background: 'var(--surface)', borderRadius: 16, padding: 28,
-        width: '100%', maxWidth: 520, maxHeight: '90vh', overflowY: 'auto',
-        boxShadow: '0 25px 60px rgba(0,0,0,.25)',
-      }}>
+      style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: '100%', maxWidth: 500, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 25px 60px rgba(0,0,0,.25)' }}>
+
         {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22 }}>
           <h2 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
             <IconEditar size={18} weight="duotone" color="var(--accent)" aria-hidden="true" />
             Editar ítem
           </h2>
-          <button onClick={onClose} aria-label="Cerrar" style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4, display: 'flex', alignItems: 'center' }}>
+          <button onClick={onClose} aria-label="Cerrar" style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4, display: 'flex' }}>
             <IconCerrar size={20} aria-hidden="true" />
           </button>
         </div>
 
         {/* Nombre */}
         <div style={{ marginBottom: 16 }}>
-          <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-            Nombre del ítem
-          </label>
-          <input
-            value={form.nombre}
-            onChange={e => set('nombre', e.target.value)}
-            placeholder="ej: Pollo entero, Yerba, Nafta..."
-            autoFocus
-            style={{
-              width: '100%', padding: '11px 14px', border: '1.5px solid var(--border)',
-              borderRadius: 10, fontSize: 14, background: 'var(--surface)',
-              color: 'var(--text-primary)', outline: 'none', fontFamily: 'inherit',
-              boxSizing: 'border-box',
-            }}
-          />
+          <label style={lbl}>Nombre del ítem</label>
+          <input value={form.nombre} onChange={e => set('nombre', e.target.value)}
+            placeholder="ej: Pollo entero, Yerba, Nafta..." autoFocus style={inp} />
         </div>
 
         {/* Unidad */}
         <div style={{ marginBottom: 20 }}>
-          <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-            Unidad por defecto
-          </label>
+          <label style={lbl}>Unidad por defecto</label>
           <UnitSelect value={form.unidad_default} onChange={v => set('unidad_default', v)}
             style={{ width: '100%', padding: '10px 14px', fontSize: 14 }} />
         </div>
 
-        {/* Categoría */}
-        <div style={{ marginBottom: 24 }}>
-          <CategorySearch
-            value={{ n1: form.n1, n2: form.n2, n3: form.n3, n4: form.n4 }}
-            onChange={cat => setForm(p => ({ ...p, ...cat }))}
-          />
+        {/* Categoría — 3 niveles en cascada */}
+        <div style={{ marginBottom: 20 }}>
+          <label style={{ ...lbl, marginBottom: 12 }}>Categoría (3 niveles)</label>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {[
+              { key: 'n1', label: 'Nivel 1 — Tipo',         opts: opts_n1, onChg: v => setForm(p => ({ ...p, n1: v, n2: '', n3: '' })), dis: false },
+              { key: 'n2', label: 'Nivel 2 — Área',         opts: opts_n2, onChg: v => setForm(p => ({ ...p, n2: v, n3: '' })),          dis: !form.n1 },
+              { key: 'n3', label: 'Nivel 3 — Subcategoría', opts: opts_n3, onChg: v => set('n3', v),                                     dis: !form.n2 },
+            ].map(({ key, label, opts, onChg, dis }) => (
+              <div key={key}>
+                <label style={{ ...lbl, marginBottom: 4, fontSize: 10 }}>{label}</label>
+                <select value={form[key]} onChange={e => onChg(e.target.value)} disabled={dis || opts.length === 0}
+                  style={{ ...inp, cursor: dis ? 'not-allowed' : 'pointer', opacity: dis ? 0.5 : 1 }}>
+                  <option value="">— elegí —</option>
+                  {opts.map(o => <option key={o} value={o}>{o}</option>)}
+                </select>
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* Error */}
         {error && (
           <div style={{ marginBottom: 16, padding: '10px 14px', background: '#fee2e2', borderRadius: 10, color: '#dc2626', fontSize: 13, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <IconError size={16} aria-hidden="true" />
-            {error}
+            <IconError size={16} aria-hidden="true" />{error}
           </div>
         )}
 
@@ -206,7 +205,8 @@ function EditModal({ item, onSave, onClose }) {
           <button onClick={onClose} style={{ flex: 1, padding: '11px', border: '1.5px solid var(--border)', borderRadius: 10, background: 'var(--surface2)', color: 'var(--text-secondary)', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
             Cancelar
           </button>
-          <button onClick={handleSave} disabled={!valid || saving} style={{ flex: 2, padding: '11px', border: 'none', borderRadius: 10, background: valid && !saving ? 'var(--accent)' : 'var(--border)', color: valid && !saving ? '#fff' : 'var(--text-muted)', fontSize: 14, fontWeight: 800, cursor: valid && !saving ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, transition: 'all .15s' }}>
+          <button onClick={handleSave} disabled={!valid || saving}
+            style={{ flex: 2, padding: '11px', border: 'none', borderRadius: 10, background: valid && !saving ? 'var(--accent)' : 'var(--border)', color: valid && !saving ? '#fff' : 'var(--text-muted)', fontSize: 14, fontWeight: 800, cursor: valid && !saving ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
             {saving ? <IconSpinner size={16} style={{ animation: 'spin 1s linear infinite' }} aria-hidden="true" /> : <IconGuardar size={16} aria-hidden="true" />}
             {saving ? 'Guardando…' : 'Guardar cambios'}
           </button>
@@ -333,7 +333,7 @@ export default function ItemsPage() {
       const q = query.toLowerCase()
       list = list.filter(it =>
         it.nombre.toLowerCase().includes(q) ||
-        (it.n4 || '').toLowerCase().includes(q) ||
+        
         (it.n1 || '').toLowerCase().includes(q)
       )
     }
