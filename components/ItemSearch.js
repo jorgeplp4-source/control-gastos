@@ -119,7 +119,7 @@ export default function ItemSearch({ value, onChange, onUnitChange, category = {
             value={query}
             onChange={handleChange}
             onFocus={() => { setFocused(true); if (query.length >= 1) setOpen(true) }}
-            placeholder="Buscá un ítem: \"pollo\", \"luz\", \"nafta\"…"
+            placeholder={'Buscá un ítem: "pollo", "luz", "nafta"…'}
             disabled={disabled}
             aria-label="Buscar ítem"
             aria-autocomplete="list"
