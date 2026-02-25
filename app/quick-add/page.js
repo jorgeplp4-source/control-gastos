@@ -2,16 +2,18 @@
 // app/quick-add/page.js — Ruta ultra-minimalista para pantalla de inicio (PWA shortcut)
 // force-dynamic: evita prerender estático (usa Supabase + Context que no corren en SSR)
 export const dynamic = 'force-dynamic'
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { createClient } from '../../lib/supabase-browser'
-import { CSV_CATEGORIES, uniq } from '../../lib/constants'
+import { uniq } from '../../lib/constants'
 import { useApp } from '../../context/AppContext'
+import { useCategories } from '../../lib/useCategories'
 import {
   IconExito, IconRapido, IconDinero, IconEtiquetas, IconCalendario, IconArrowRight,
 } from '../../lib/icons'
 
 export default function QuickAddPage() {
   const { fmtMoney } = useApp()
+  const { categories } = useCategories()
   const supabase = createClient()
   const today = new Date().toISOString().split('T')[0]
 
@@ -24,10 +26,10 @@ export default function QuickAddPage() {
   const [saving, setSaving] = useState(false)
   const [done, setDone]   = useState(false)
 
-  const opts_n1 = uniq(CSV_CATEGORIES.map(c => c.n1))
-  const opts_n2 = uniq(CSV_CATEGORIES.filter(c => c.n1 === n1).map(c => c.n2))
-  const opts_n3 = uniq(CSV_CATEGORIES.filter(c => c.n1 === n1 && c.n2 === n2).map(c => c.n3))
-  const opts_n4 = uniq(CSV_CATEGORIES.filter(c => c.n1 === n1 && c.n2 === n2 && c.n3 === n3).map(c => c.n4))
+  const opts_n1 = useMemo(() => uniq(categories.map(c => c.n1)), [categories])
+  const opts_n2 = useMemo(() => uniq(categories.filter(c => c.n1 === n1).map(c => c.n2)), [categories, n1])
+  const opts_n3 = useMemo(() => uniq(categories.filter(c => c.n1 === n1 && c.n2 === n2).map(c => c.n3)), [categories, n1, n2])
+  const opts_n4 = useMemo(() => uniq(categories.filter(c => c.n1 === n1 && c.n2 === n2 && c.n3 === n3).map(c => c.n4)), [categories, n1, n2, n3])
 
   const N1_COLORS = { Fijos:'#1e40af', Variables:'#059669', Extraordinarios:'#d97706', Imprevistos:'#dc2626' }
 

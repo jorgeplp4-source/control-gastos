@@ -1,19 +1,11 @@
 'use client'
 import { useState, useMemo, useRef, useEffect } from 'react'
-import { CSV_CATEGORIES, N1_COLORS, uniq } from '../lib/constants'
+import { N1_COLORS, uniq } from '../lib/constants'
+import { useCategories } from '../lib/useCategories'
 import {
   IconBuscar, IconEtiquetas, IconCascada, IconCerrar, IconArrowRight,
-  IconSinResultado,
+  IconSinResultado, IconSpinner,
 } from '../lib/icons'
-
-// Construye lista plana de rutas completas para búsqueda
-const ALL_PATHS = (() => {
-  const paths = []
-  CSV_CATEGORIES.forEach(c => {
-    if (c.n4) paths.push({ n1: c.n1, n2: c.n2, n3: c.n3, n4: c.n4 })
-  })
-  return paths
-})()
 
 function highlight(text, query) {
   if (!query) return text
@@ -31,7 +23,8 @@ function highlight(text, query) {
 }
 
 export default function CategorySearch({ value = {}, onChange }) {
-  const [mode, setMode]       = useState('search')   // 'search' | 'cascade'
+  const { categories, loading } = useCategories()
+  const [mode, setMode]       = useState('search')
   const [query, setQuery]     = useState('')
   const [open, setOpen]       = useState(false)
   const [focused, setFocused] = useState(false)
@@ -44,7 +37,7 @@ export default function CategorySearch({ value = {}, onChange }) {
   useEffect(() => {
     function handler(e) {
       if (panelRef.current && !panelRef.current.contains(e.target) &&
-          inputRef.current && !inputRef.current.contains(e.target)) {
+          inputRef.current  && !inputRef.current.contains(e.target)) {
         setOpen(false); setFocused(false)
       }
     }
@@ -55,38 +48,39 @@ export default function CategorySearch({ value = {}, onChange }) {
   const results = useMemo(() => {
     if (query.length < 2) return []
     const q = query.toLowerCase()
-    return ALL_PATHS.filter(p =>
+    return categories.filter(p =>
       p.n1.toLowerCase().includes(q) || p.n2.toLowerCase().includes(q) ||
       p.n3.toLowerCase().includes(q) || p.n4.toLowerCase().includes(q)
     ).slice(0, 12)
-  }, [query])
+  }, [query, categories])
 
   const handleSelect = (r) => {
     onChange({ n1: r.n1, n2: r.n2, n3: r.n3, n4: r.n4 })
     setQuery(''); setOpen(false); setFocused(false)
   }
 
-  // ── Opciones cascada ────────────────────────────────────────────────────────
-  const opts_n1 = useMemo(() => uniq(CSV_CATEGORIES.map(c => c.n1)), [])
-  const opts_n2 = useMemo(() => value.n1 ? uniq(CSV_CATEGORIES.filter(c => c.n1 === value.n1).map(c => c.n2)) : [], [value.n1])
-  const opts_n3 = useMemo(() => value.n2 ? uniq(CSV_CATEGORIES.filter(c => c.n1 === value.n1 && c.n2 === value.n2).map(c => c.n3)) : [], [value.n1, value.n2])
-  const opts_n4 = useMemo(() => value.n3 ? uniq(CSV_CATEGORIES.filter(c => c.n1 === value.n1 && c.n2 === value.n2 && c.n3 === value.n3).map(c => c.n4)) : [], [value.n1, value.n2, value.n3])
+  // ── Cascada — opciones derivadas de categories ────────────────────────────
+  const opts_n1 = useMemo(() => uniq(categories.map(c => c.n1)), [categories])
+  const opts_n2 = useMemo(() => value.n1 ? uniq(categories.filter(c => c.n1 === value.n1).map(c => c.n2)) : [], [value.n1, categories])
+  const opts_n3 = useMemo(() => value.n2 ? uniq(categories.filter(c => c.n1 === value.n1 && c.n2 === value.n2).map(c => c.n3)) : [], [value.n1, value.n2, categories])
+  const opts_n4 = useMemo(() => value.n3 ? uniq(categories.filter(c => c.n1 === value.n1 && c.n2 === value.n2 && c.n3 === value.n3).map(c => c.n4)) : [], [value.n1, value.n2, value.n3, categories])
 
-  const selStyle = { width: '100%', padding: '10px 14px', border: '1.5px solid var(--border)', borderRadius: 10, fontSize: 14, background: 'var(--surface)', color: 'var(--text-primary)', outline: 'none', fontFamily: 'inherit', cursor: 'pointer' }
+  const selStyle  = { width: '100%', padding: '10px 14px', border: '1.5px solid var(--border)', borderRadius: 10, fontSize: 14, background: 'var(--surface)', color: 'var(--text-primary)', outline: 'none', fontFamily: 'inherit', cursor: 'pointer' }
   const activeColor = value.n1 ? (N1_COLORS[value.n1] || {}).bg || 'var(--accent)' : 'var(--accent)'
 
   return (
     <div>
-      {/* HEADER — toggle modo */}
+      {/* HEADER */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
           <IconEtiquetas size={14} aria-hidden="true" />
           Categorización (4 niveles)
+          {loading && <IconSpinner size={13} style={{ animation: 'spin 1s linear infinite', marginLeft: 4 }} aria-hidden="true" />}
         </div>
         <div style={{ display: 'flex', gap: 0, border: '1.5px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
           {[
-            { id: 'search',  label: 'Búsqueda', Icon: IconBuscar   },
-            { id: 'cascade', label: 'Cascada',  Icon: IconCascada  },
+            { id: 'search',  label: 'Búsqueda', Icon: IconBuscar  },
+            { id: 'cascade', label: 'Cascada',  Icon: IconCascada },
           ].map(m => (
             <button key={m.id} onClick={() => setMode(m.id)} aria-pressed={mode === m.id}
               style={{ padding: '5px 12px', border: 'none', fontSize: 11, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, background: mode === m.id ? 'var(--accent)' : 'var(--surface)', color: mode === m.id ? '#fff' : 'var(--text-muted)', transition: 'all .15s' }}>
@@ -96,6 +90,7 @@ export default function CategorySearch({ value = {}, onChange }) {
           ))}
         </div>
       </div>
+      <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
 
       {/* MODO BÚSQUEDA */}
       {mode === 'search' && (
@@ -110,6 +105,7 @@ export default function CategorySearch({ value = {}, onChange }) {
               aria-label="Buscar categoría"
               aria-autocomplete="list"
               aria-expanded={open}
+              disabled={loading}
               style={{
                 width: '100%', padding: '11px 44px 11px 14px',
                 border: `1.5px solid ${focused ? activeColor : 'var(--border)'}`,
@@ -117,14 +113,11 @@ export default function CategorySearch({ value = {}, onChange }) {
                 color: 'var(--text-primary)', outline: 'none', fontFamily: 'inherit',
                 boxSizing: 'border-box',
                 boxShadow: focused ? `0 0 0 3px ${activeColor}22` : 'none', transition: 'all .15s',
+                opacity: loading ? 0.6 : 1,
               }}
             />
-            <IconBuscar
-              size={18}
-              color="var(--text-muted)"
-              aria-hidden="true"
-              style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}
-            />
+            <IconBuscar size={18} color="var(--text-muted)" aria-hidden="true"
+              style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
           </div>
 
           {/* Selección actual */}
@@ -146,7 +139,7 @@ export default function CategorySearch({ value = {}, onChange }) {
           )}
 
           {/* Dropdown */}
-          {open && (
+          {open && !loading && (
             <div ref={panelRef} role="listbox" aria-label="Resultados de búsqueda"
               style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 500, background: 'var(--surface)', border: '1.5px solid var(--border)', borderRadius: 12, boxShadow: 'var(--shadow-lg)', marginTop: 4, maxHeight: 340, overflowY: 'auto' }}>
 
@@ -178,23 +171,19 @@ export default function CategorySearch({ value = {}, onChange }) {
               )}
 
               {/* Resultados */}
-              {results.length > 0 && results.map((r, i) => {
+              {results.map((r, i) => {
                 const c = N1_COLORS[r.n1] || { bg: '#64748b', light: 'var(--surface2)', text: '#64748b' }
                 return (
-                  <button key={i} role="option" onClick={() => handleSelect(r)}
+                  <button key={r.n4_id || i} role="option" onClick={() => handleSelect(r)}
                     style={{ width: '100%', padding: '10px 16px', border: 'none', borderBottom: '1px solid var(--border)', background: 'none', cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 10 }}>
                     <span style={{ width: 8, height: 8, borderRadius: '50%', background: c.bg, flexShrink: 0 }} aria-hidden="true" />
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
-                        {highlight(r.n4, query)}
-                      </div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>{highlight(r.n4, query)}</div>
                       <div style={{ fontSize: 11, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {highlight(r.n1, query)} › {highlight(r.n2, query)} › {highlight(r.n3, query)}
                       </div>
                     </div>
-                    <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 99, background: c.bg + '18', color: c.bg, flexShrink: 0 }}>
-                      {r.n1}
-                    </span>
+                    <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 99, background: c.bg + '18', color: c.bg, flexShrink: 0 }}>{r.n1}</span>
                   </button>
                 )
               })}
@@ -208,17 +197,15 @@ export default function CategorySearch({ value = {}, onChange }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {[
             { key: 'n1', label: 'Tipo',         opts: opts_n1, placeholder: 'Fijos, Variables…' },
-            { key: 'n2', label: 'Área',          opts: opts_n2, placeholder: 'Elegí primero el Tipo', disabled: !value.n1 },
-            { key: 'n3', label: 'Subcategoría',  opts: opts_n3, placeholder: 'Elegí primero el Área', disabled: !value.n2 },
-            { key: 'n4', label: 'Ítem',          opts: opts_n4, placeholder: 'Elegí primero Subcategoría', disabled: !value.n3 },
+            { key: 'n2', label: 'Área',          opts: opts_n2, placeholder: 'Elegí primero el Tipo',         disabled: !value.n1 },
+            { key: 'n3', label: 'Subcategoría',  opts: opts_n3, placeholder: 'Elegí primero el Área',         disabled: !value.n2 },
+            { key: 'n4', label: 'Ítem',          opts: opts_n4, placeholder: 'Elegí primero Subcategoría',    disabled: !value.n3 },
           ].map(({ key, label, opts, placeholder, disabled }) => (
             <div key={key}>
-              <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4 }}>
-                {label}
-              </label>
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4 }}>{label}</label>
               <select
                 value={value[key] || ''}
-                disabled={disabled || opts.length === 0}
+                disabled={disabled || opts.length === 0 || loading}
                 onChange={e => {
                   const v = e.target.value
                   if (key === 'n1') onChange({ n1: v, n2: '', n3: '', n4: '' })
@@ -226,8 +213,8 @@ export default function CategorySearch({ value = {}, onChange }) {
                   if (key === 'n3') onChange({ ...value, n3: v, n4: '' })
                   if (key === 'n4') onChange({ ...value, n4: v })
                 }}
-                style={{ ...selStyle, opacity: disabled ? 0.5 : 1, cursor: disabled ? 'not-allowed' : 'pointer' }}>
-                <option value="">{placeholder}</option>
+                style={{ ...selStyle, opacity: (disabled || loading) ? 0.5 : 1, cursor: disabled ? 'not-allowed' : 'pointer' }}>
+                <option value="">{loading ? 'Cargando…' : placeholder}</option>
                 {opts.map(o => <option key={o} value={o}>{o}</option>)}
               </select>
             </div>

@@ -1,7 +1,8 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { createClient } from '../lib/supabase-browser'
-import { CSV_CATEGORIES, fmt, fmtDate, uniq } from '../lib/constants'
+import { fmt, fmtDate, uniq } from '../lib/constants'
+import { useCategories } from '../lib/useCategories'
 import { useApp } from '../context/AppContext'
 import {
   IconRecurrentes, IconPlus, IconEditar, IconEliminar, IconCerrar,
@@ -208,11 +209,11 @@ function RecurrenteForm({ initial, onSave, onCancel }) {
   const [saving, setSaving] = useState(false)
   const set = (k,v) => setForm(p=>({...p,[k]:v}))
 
-  const cats = CSV_CATEGORIES
-  const opts_n1 = uniq(cats.map(c=>c.n1)).filter(Boolean).sort()
-  const opts_n2 = uniq(cats.filter(c=>c.n1===form.n1).map(c=>c.n2)).filter(Boolean).sort()
-  const opts_n3 = uniq(cats.filter(c=>c.n1===form.n1&&c.n2===form.n2).map(c=>c.n3)).filter(Boolean).sort()
-  const opts_n4 = uniq(cats.filter(c=>c.n1===form.n1&&c.n2===form.n2&&c.n3===form.n3).map(c=>c.n4)).filter(Boolean).sort()
+  const { categories } = useCategories()
+  const opts_n1 = uniq(categories.map(c=>c.n1)).filter(Boolean).sort()
+  const opts_n2 = uniq(categories.filter(c=>c.n1===form.n1).map(c=>c.n2)).filter(Boolean).sort()
+  const opts_n3 = uniq(categories.filter(c=>c.n1===form.n1&&c.n2===form.n2).map(c=>c.n3)).filter(Boolean).sort()
+  const opts_n4 = uniq(categories.filter(c=>c.n1===form.n1&&c.n2===form.n2&&c.n3===form.n3).map(c=>c.n4)).filter(Boolean).sort()
 
   const valid = form.n1&&form.n2&&form.n3&&form.n4&&form.monto&&form.fecha_inicio
 
