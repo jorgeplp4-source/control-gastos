@@ -43,7 +43,7 @@ export default function RecurrentesPage() {
     setList(data||[])
     setLoading(false)
   }
-  useEffect(){ load() }, [])
+  useEffect(() => { load() }, [])
 
   const handleDelete = async (id) => {
     await supabase.from('recurring_expenses').delete().eq('id',id)
