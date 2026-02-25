@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { UNITS } from '../lib/constants'
 import CategorySearch from './CategorySearch'
+import ItemSearch from './ItemSearch'
 import {
   IconEditar, IconRegistrar, IconCerrar, IconGuardar,
   IconExito, IconRecurrentes, IconConfig, IconCalendario, IconInfo,
@@ -19,6 +20,7 @@ export default function ExpenseForm({ initial, onSave, onCancel }) {
   const today = new Date().toISOString().split('T')[0]
   const blank = { n1:'', n2:'', n3:'', n4:'', cantidad:'', unidad:'unidad', monto:'', fecha:today, observaciones:'' }
   const [form, setForm]           = useState(initial ? { ...initial } : blank)
+  const [selectedItem, setSelectedItem] = useState(null)   // ítem seleccionado desde ItemSearch
   const [saving, setSaving]       = useState(false)
   const [hacerRec, setHacerRec]   = useState(false)
   const [recForm, setRecForm]     = useState({ frecuencia:'mensual', intervalo_dias:30, fecha_inicio:today, fecha_fin:'', activo:true })
@@ -28,6 +30,22 @@ export default function ExpenseForm({ initial, onSave, onCancel }) {
 
   const handleCategoryChange = (cat) =>
     setForm(p => ({ ...p, n1:cat.n1||'', n2:cat.n2||'', n3:cat.n3||'', n4:cat.n4||'' }))
+
+  // Cuando el usuario selecciona un ítem desde ItemSearch:
+  // — si tiene categoría asociada, la propaga al formulario
+  // — siempre registra el ítem seleccionado
+  const handleItemChange = (item) => {
+    setSelectedItem(item)
+    if (item && item.n4) {
+      setForm(p => ({ ...p, n1:item.n1||p.n1, n2:item.n2||p.n2, n3:item.n3||p.n3, n4:item.n4||p.n4 }))
+    }
+  }
+
+  // Autocompleta la unidad cuando el ítem tiene unidad_default
+  // El usuario puede cambiarla manualmente — eso NO modifica el default del ítem
+  const handleUnitFromItem = (unidad) => {
+    if (unidad) set('unidad', unidad)
+  }
 
   const valid = form.n1 && form.n2 && form.n3 && form.n4 && form.cantidad && form.monto && form.fecha
 
@@ -77,6 +95,19 @@ export default function ExpenseForm({ initial, onSave, onCancel }) {
               value={{ n1:form.n1, n2:form.n2, n3:form.n3, n4:form.n4 }}
               onChange={handleCategoryChange}
             />
+          </div>
+
+          {/* Búsqueda de ítem específico */}
+          <div style={{ marginBottom:22 }}>
+            <ItemSearch
+              value={selectedItem}
+              onChange={handleItemChange}
+              onUnitChange={handleUnitFromItem}
+              category={{ n1:form.n1, n2:form.n2, n3:form.n3, n4:form.n4 }}
+            />
+            <p style={{ fontSize:11, color:'var(--text-muted)', margin:'5px 0 0', fontStyle:'italic' }}>
+              Opcional — asociá un ítem para autocompletar la unidad y reutilizarlo en registros futuros
+            </p>
           </div>
 
           {/* Campos principales */}
