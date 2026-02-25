@@ -1,5 +1,7 @@
 'use client'
 // app/quick-add/page.js — Ruta ultra-minimalista para pantalla de inicio (PWA shortcut)
+// force-dynamic: evita prerender estático (usa Supabase + Context que no corren en SSR)
+export const dynamic = 'force-dynamic'
 import { useState } from 'react'
 import { createClient } from '../../lib/supabase-browser'
 import { CSV_CATEGORIES, uniq } from '../../lib/constants'
