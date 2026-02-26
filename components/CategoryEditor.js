@@ -2,7 +2,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { UNITS, N1_COLORS, uniq } from '../lib/constants'
 import { useCategories } from '../lib/useCategories'
-import { CreateItemModal } from './ItemSearch'
+import { ItemFormModal } from './ItemSearch'
 import {
   IconEditar, IconEliminar, IconPlus, IconCerrar,
   IconGuardar, IconCheck, IconAdvertencia, IconCaretDown, IconCaretRight,
@@ -26,24 +26,23 @@ function buildTree(cats) {
 
 // ── Pestaña de Ítems ──────────────────────────────────────────────────────────
 function ItemsTab() {
-  const [items, setItems]       = useState([])
-  const [loading, setLoading]   = useState(true)
-  const [query, setQuery]       = useState('')
-  const [filterN1, setFilterN1] = useState('')
-  const [editItem, setEditItem] = useState(null)
+  const [items, setItems]         = useState([])
+  const [loading, setLoading]     = useState(true)
+  const [query, setQuery]         = useState('')
+  const [filterN1, setFilterN1]   = useState('')
+  const [editItem, setEditItem]   = useState(null)
   const [deleteItem, setDeleteItem] = useState(null)
   const [showCreate, setShowCreate] = useState(false)
-  const [toast, setToast]       = useState(null)
-  const [deleting, setDeleting] = useState(false)
-  const [delError, setDelError] = useState(null)
-  const { categories } = useCategories()
+  const [toast, setToast]         = useState(null)
+  const [deleting, setDeleting]   = useState(false)
+  const [delError, setDelError]   = useState(null)
 
   const showToast = (msg, type='ok') => { setToast({msg,type}); setTimeout(()=>setToast(null),3000) }
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/items')
+      const res  = await fetch('/api/items')
       const data = await res.json()
       setItems(Array.isArray(data) ? data : [])
     } finally { setLoading(false) }
@@ -51,22 +50,29 @@ function ItemsTab() {
 
   useEffect(() => { load() }, [load])
 
-  const opts_n1 = useMemo(() => [...new Set(items.map(it => it.n1).filter(Boolean))].sort(), [items])
+  // Extraer tipos únicos del n1 de cada ítem
+  const opts_n1 = useMemo(() => {
+    return [...new Set(items.map(it => it.n1).filter(Boolean))].sort()
+  }, [items])
 
   const filtered = useMemo(() => {
     let list = items
     if (filterN1) list = list.filter(it => it.n1 === filterN1)
     if (query.trim()) {
       const q = query.toLowerCase()
-      list = list.filter(it => it.nombre.toLowerCase().includes(q) || (it.n3||'').toLowerCase().includes(q))
+      list = list.filter(it =>
+        it.nombre.toLowerCase().includes(q) ||
+        (it.n3 || '').toLowerCase().includes(q) ||
+        (it.n2 || '').toLowerCase().includes(q)
+      )
     }
-    return [...list].sort((a,b) => a.nombre.localeCompare(b.nombre))
+    return [...list].sort((a, b) => a.nombre.localeCompare(b.nombre))
   }, [items, query, filterN1])
 
   const handleDeleteConfirm = async () => {
     setDeleting(true); setDelError(null)
     try {
-      const res = await fetch(`/api/items?id=${deleteItem.id}`, { method:'DELETE' })
+      const res  = await fetch(`/api/items?id=${deleteItem.id}`, { method:'DELETE' })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Error al eliminar')
       setItems(prev => prev.filter(it => it.id !== deleteItem.id))
@@ -117,15 +123,15 @@ function ItemsTab() {
         <div style={{ textAlign:'center', padding:'32px 20px', color:'var(--text-muted)' }}>
           {items.length === 0
             ? <><div style={{ fontSize:40, marginBottom:10 }}>📦</div><p style={{ margin:0 }}>Todavía no hay ítems guardados</p></>
-            : <p style={{ margin:0 }}>Sin resultados para "<strong>{query}</strong>"</p>
-          }
+            : <p style={{ margin:0 }}>Sin resultados para "<strong>{query}</strong>"</p>}
         </div>
       )}
 
       {!loading && filtered.length > 0 && (
         <div style={{ border:'1.5px solid var(--border)', borderRadius:12, overflow:'hidden' }}>
           {filtered.map((item, idx) => {
-            const c = N1_COLORS[item.n1] || { bg:'#64748b', light:'#f1f5f9', text:'#64748b' }
+            const c    = N1_COLORS[item.n1] || { bg:'#64748b', light:'#f1f5f9', text:'#64748b' }
+            const ruta = [item.n1, item.n2, item.n3].filter(Boolean).join(' › ')
             return (
               <div key={item.id}
                 style={{ display:'flex', alignItems:'center', gap:10, padding:'11px 14px', borderBottom: idx < filtered.length-1 ? '1px solid var(--border)' : 'none', background:'var(--surface)' }}
@@ -134,7 +140,7 @@ function ItemsTab() {
                 <span style={{ width:8, height:8, borderRadius:'50%', background:c.bg, flexShrink:0 }} />
                 <div style={{ flex:1, minWidth:0 }}>
                   <div style={{ fontSize:13, fontWeight:700, color:'var(--text-primary)' }}>{item.nombre}</div>
-                  <div style={{ fontSize:11, color:'var(--text-muted)' }}>{[item.n1,item.n2,item.n3].filter(Boolean).join(' › ')}</div>
+                  <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:2 }}>{ruta}</div>
                 </div>
                 <span style={{ fontSize:11, fontWeight:700, padding:'2px 8px', borderRadius:99, background:'var(--surface2)', color:'var(--text-secondary)', flexShrink:0 }}>
                   {item.unidad_default||'unidad'}
@@ -153,19 +159,18 @@ function ItemsTab() {
         </div>
       )}
 
-      {/* Modal crear */}
+      {/* Modal crear — reutiliza ItemFormModal */}
       {showCreate && (
-        <CreateItemModal
+        <ItemFormModal
           onSave={(item) => { setItems(prev => [...prev, item]); setShowCreate(false); showToast(`"${item.nombre}" creado`) }}
           onClose={() => setShowCreate(false)}
         />
       )}
 
-      {/* Modal editar */}
+      {/* Modal editar — reutiliza ItemFormModal */}
       {editItem && (
-        <EditItemModal
+        <ItemFormModal
           item={editItem}
-          categories={categories}
           onSave={(updated) => { setItems(prev => prev.map(it => it.id===updated.id ? updated : it)); setEditItem(null); showToast(`"${updated.nombre}" actualizado`) }}
           onClose={() => setEditItem(null)}
         />
@@ -185,9 +190,7 @@ function ItemsTab() {
             </p>
             {delError && <p style={{ fontSize:12, color:'#dc2626', marginBottom:12 }}>{delError}</p>}
             <div style={{ display:'flex', gap:10 }}>
-              <button onClick={() => { setDeleteItem(null); setDelError(null) }} style={{ flex:1, padding:'10px', border:'1.5px solid var(--border)', borderRadius:10, background:'var(--surface2)', color:'var(--text-secondary)', fontWeight:700, fontSize:13, cursor:'pointer' }}>
-                Cancelar
-              </button>
+              <button onClick={() => { setDeleteItem(null); setDelError(null) }} style={{ flex:1, padding:'10px', border:'1.5px solid var(--border)', borderRadius:10, background:'var(--surface2)', color:'var(--text-secondary)', fontWeight:700, fontSize:13, cursor:'pointer' }}>Cancelar</button>
               <button onClick={handleDeleteConfirm} disabled={deleting}
                 style={{ flex:1, padding:'10px', border:'none', borderRadius:10, background: deleting?'var(--border)':'#ef4444', color:'#fff', fontWeight:800, fontSize:13, cursor: deleting?'not-allowed':'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}>
                 {deleting ? <IconSpinner size={14} style={{ animation:'spin 1s linear infinite' }} aria-hidden="true" /> : <IconEliminar size={14} aria-hidden="true" />}
@@ -208,101 +211,6 @@ function ItemsTab() {
   )
 }
 
-// ── Modal editar ítem (inline en CategoryEditor) ──────────────────────────────
-function EditItemModal({ item, categories, onSave, onClose }) {
-  const [nombre, setNombre] = useState(item.nombre||'')
-  const [unidad, setUnidad] = useState(item.unidad_default||'unidad')
-  const [n1, setN1] = useState(item.n1||'')
-  const [n2, setN2] = useState(item.n2||'')
-  const [n3, setN3] = useState(item.n3||'')
-  const [saving, setSaving] = useState(false)
-  const [error, setError]   = useState('')
-
-  const opts_n1 = useMemo(() => uniq(categories.map(c=>c.n1)), [categories])
-  const opts_n2 = useMemo(() => n1?uniq(categories.filter(c=>c.n1===n1).map(c=>c.n2)):[], [categories,n1])
-  const opts_n3 = useMemo(() => n2?uniq(categories.filter(c=>c.n1===n1&&c.n2===n2).map(c=>c.n3)):[], [categories,n1,n2])
-  const valid = nombre.trim().length>=2 && n1 && n2 && n3
-
-  const handleSave = async () => {
-    if (!valid||saving) return
-    setSaving(true); setError('')
-    try {
-      const res = await fetch('/api/items', { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ id:item.id, nombre:nombre.trim(), n1, n2, n3, unidad_default:unidad }) })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error||'Error al guardar')
-      onSave(data)
-    } catch(e) { setError(e.message); setSaving(false) }
-  }
-
-  useEffect(() => {
-    const h = e => { if(e.key==='Escape') onClose() }
-    document.addEventListener('keydown', h)
-    return () => document.removeEventListener('keydown', h)
-  }, [onClose])
-
-  const inp = { padding:'9px 12px', border:'1.5px solid var(--border)', borderRadius:9, fontSize:13, background:'var(--surface2)', outline:'none', width:'100%', color:'var(--text-primary)', fontFamily:'inherit', boxSizing:'border-box' }
-  const lbl = { display:'block', fontSize:10, fontWeight:700, color:'var(--text-muted)', marginBottom:5, textTransform:'uppercase', letterSpacing:'0.06em' }
-
-  return (
-    <>
-      <div onClick={onClose} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.45)', zIndex:1000 }} />
-      <div role="dialog" aria-modal="true" style={{ position:'fixed', top:'50%', left:'50%', transform:'translate(-50%,-50%)', zIndex:1001, width:'min(480px,95vw)', background:'var(--surface)', borderRadius:18, boxShadow:'0 24px 60px rgba(0,0,0,.25)', overflow:'hidden', maxHeight:'90vh', display:'flex', flexDirection:'column' }}>
-        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'18px 22px 14px', borderBottom:'1px solid var(--border)' }}>
-          <h3 style={{ margin:0, fontSize:15, fontWeight:800, color:'var(--text-primary)', display:'flex', alignItems:'center', gap:8 }}>
-            <IconEditar size={16} weight="duotone" color="var(--accent)" aria-hidden="true" /> Editar ítem
-          </h3>
-          <button onClick={onClose} style={{ border:'none', background:'none', cursor:'pointer', color:'var(--text-muted)', display:'flex' }}>
-            <IconCerrar size={18} aria-hidden="true" />
-          </button>
-        </div>
-        <div style={{ padding:'18px 22px', flex:1, overflowY:'auto', display:'flex', flexDirection:'column', gap:14 }}>
-          <div>
-            <label style={lbl}>Nombre *</label>
-            <input value={nombre} onChange={e=>setNombre(e.target.value)} autoFocus style={inp} />
-          </div>
-          <div>
-            <label style={lbl}>Unidad por defecto</label>
-            <select value={unidad} onChange={e=>setUnidad(e.target.value)} style={{ ...inp, cursor:'pointer' }}>
-              {UNITS.map(u=><option key={u} value={u}>{u}</option>)}
-            </select>
-          </div>
-          <div>
-            <label style={{ ...lbl, marginBottom:10 }}>Categoría (3 niveles) *</label>
-            {n1&&n2&&n3 && (
-              <div style={{ padding:'6px 10px', background:(N1_COLORS[n1]||{}).light||'#eff6ff', borderRadius:7, marginBottom:8, fontSize:12, fontWeight:700, color:(N1_COLORS[n1]||{}).text||'#3b82f6' }}>
-                {n1} › {n2} › {n3}
-              </div>
-            )}
-            <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-              {[
-                { label:'Tipo',         val:n1, opts:opts_n1, onChg:v=>{setN1(v);setN2('');setN3('')}, dis:false },
-                { label:'Área',         val:n2, opts:opts_n2, onChg:v=>{setN2(v);setN3('')},           dis:!n1   },
-                { label:'Subcategoría', val:n3, opts:opts_n3, onChg:v=>setN3(v),                       dis:!n2   },
-              ].map(({label,val,opts,onChg,dis}) => (
-                <div key={label}>
-                  <label style={{ ...lbl, fontSize:9 }}>{label}</label>
-                  <select value={val} onChange={e=>onChg(e.target.value)} disabled={dis||opts.length===0}
-                    style={{ ...inp, cursor:dis?'not-allowed':'pointer', opacity:dis?0.5:1 }}>
-                    <option value="">— elegí —</option>
-                    {opts.map(o=><option key={o} value={o}>{o}</option>)}
-                  </select>
-                </div>
-              ))}
-            </div>
-          </div>
-          {error && <p style={{ fontSize:12, color:'#dc2626', margin:0 }}>{error}</p>}
-        </div>
-        <div style={{ display:'flex', gap:8, padding:'14px 22px', borderTop:'1px solid var(--border)', background:'var(--surface2)' }}>
-          <button onClick={onClose} style={{ flex:1, padding:'9px', border:'1.5px solid var(--border)', borderRadius:9, background:'var(--surface)', color:'var(--text-secondary)', fontSize:13, fontWeight:600, cursor:'pointer' }}>Cancelar</button>
-          <button onClick={handleSave} disabled={!valid||saving}
-            style={{ flex:2, padding:'9px', border:'none', borderRadius:9, background:valid?'var(--accent)':'var(--border)', color:valid?'#fff':'var(--text-muted)', fontSize:13, fontWeight:800, cursor:valid&&!saving?'pointer':'not-allowed', display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}>
-            {saving?<><IconSpinner size={13} style={{animation:'spin 1s linear infinite'}} aria-hidden="true"/> Guardando…</>:<><IconGuardar size={13} aria-hidden="true"/> Guardar</>}
-          </button>
-        </div>
-      </div>
-    </>
-  )
-}
 
 // ── Pestaña de Categorías ─────────────────────────────────────────────────────
 function CategoriesTab() {

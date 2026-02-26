@@ -28,21 +28,20 @@ export default function ExpenseForm({ initial, onSave, onCancel }) {
   const setRec = (k, v) => setRecForm(p => ({ ...p, [k]:v }))
   const set    = (k, v) => setForm(p => ({ ...p, [k]:v }))
 
-  // Cuando se selecciona un ítem:
+  // Cuando se selecciona un ítem desde ItemSearch:
   // item.nombre → n4 del gasto
-  // item.n1/n2/n3 → categorías del gasto
+  // item.n1/n2/n3 → categorías del gasto (n2 y n3 pueden ser null)
   const handleItemChange = (item) => {
     setSelectedItem(item)
     if (item) {
       setForm(p => ({
         ...p,
         n1: item.n1 || p.n1,
-        n2: item.n2 || p.n2,
-        n3: item.n3 || p.n3,
-        n4: item.nombre || p.n4,   // el nombre del ítem va como n4
+        n2: item.n2 || '',
+        n3: item.n3 || '',
+        n4: item.nombre,
       }))
     } else {
-      // limpiar ítem → limpiar n4 pero mantener categorías
       setForm(p => ({ ...p, n4: '' }))
     }
   }

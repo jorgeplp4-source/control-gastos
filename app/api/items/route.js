@@ -1,73 +1,81 @@
 import { createClient } from '../../../lib/supabase-server'
 import { NextResponse } from 'next/server'
 
-// GET /api/items?q=texto   — buscar ítems del usuario
+/**
+ * Modelo: items(nombre, n1, n2?, n3?, unidad_default)
+ * n1 = obligatorio. n2 y n3 = opcionales.
+ * 
+ * Ejemplos válidos:
+ *   { nombre:"luz",  n1:"Fijos",     n2:null,                 n3:null }
+ *   { nombre:"vino", n1:"Variables", n2:"Alimentación Básica", n3:"Bebidas" }
+ *   { nombre:"pan",  n1:"Variables", n2:"Alimentación Básica", n3:null }
+ */
+
 export async function GET(request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { searchParams } = new URL(request.url)
-  const q = searchParams.get('q') || ''
+  const q = new URL(request.url).searchParams.get('q') || ''
 
   let query = supabase
     .from('items')
     .select('id, nombre, n1, n2, n3, unidad_default, created_at')
     .eq('user_id', user.id)
-    .order('nombre', { ascending: true })
-    .limit(20)
+    .order('nombre')
+    .limit(30)
 
-  if (q.length >= 1) {
-    query = query.ilike('nombre', `%${q}%`)
-  }
+  if (q.length >= 1) query = query.ilike('nombre', `%${q}%`)
 
   const { data, error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data || [])
 }
 
-// POST /api/items — crear nuevo ítem (n1, n2, n3 obligatorios)
 export async function POST(request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const body = await request.json()
-  const { nombre, n1, n2, n3, unidad_default } = body
-
+  const { nombre, n1, n2, n3, unidad_default } = await request.json()
   if (!nombre?.trim()) return NextResponse.json({ error: 'nombre requerido' }, { status: 400 })
-  if (!n1 || !n2 || !n3)  return NextResponse.json({ error: 'Los 3 niveles de categoría son obligatorios' }, { status: 400 })
+  if (!n1?.trim())     return NextResponse.json({ error: 'n1 (Tipo) requerido' }, { status: 400 })
 
-  const { data, error } = await supabase
-    .from('items')
+  const { data, error } = await supabase.from('items')
     .upsert([{
       user_id: user.id,
-      nombre: nombre.trim(),
-      n1, n2, n3,
+      nombre:  nombre.trim(),
+      n1:      n1.trim(),
+      n2:      n2?.trim() || null,
+      n3:      n3?.trim() || null,
       unidad_default: unidad_default || 'unidad',
     }], { onConflict: 'user_id,nombre' })
     .select('id, nombre, n1, n2, n3, unidad_default, created_at')
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(data)
+  return NextResponse.json(data, { status: 201 })
 }
 
-// PUT /api/items — actualizar nombre, unidad y/o categoría
 export async function PUT(request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { id, nombre, unidad_default, n1, n2, n3 } = await request.json()
-  if (!id) return NextResponse.json({ error: 'id requerido' }, { status: 400 })
+  const { id, nombre, n1, n2, n3, unidad_default } = await request.json()
+  if (!id)             return NextResponse.json({ error: 'id requerido' }, { status: 400 })
   if (!nombre?.trim()) return NextResponse.json({ error: 'nombre requerido' }, { status: 400 })
+  if (!n1?.trim())     return NextResponse.json({ error: 'n1 requerido' }, { status: 400 })
 
-  const { data, error } = await supabase
-    .from('items')
-    .update({ nombre: nombre.trim(), unidad_default, n1, n2, n3 })
-    .eq('id', id)
-    .eq('user_id', user.id)
+  const { data, error } = await supabase.from('items')
+    .update({
+      nombre: nombre.trim(),
+      n1:     n1.trim(),
+      n2:     n2?.trim() || null,
+      n3:     n3?.trim() || null,
+      unidad_default: unidad_default || 'unidad',
+    })
+    .eq('id', id).eq('user_id', user.id)
     .select('id, nombre, n1, n2, n3, unidad_default, created_at')
     .single()
 
@@ -75,43 +83,26 @@ export async function PUT(request) {
   return NextResponse.json(data)
 }
 
-// PATCH /api/items — actualizar solo unidad_default
-export async function PATCH(request) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-  const { id, unidad_default } = await request.json()
-  if (!id) return NextResponse.json({ error: 'id requerido' }, { status: 400 })
-
-  const { data, error } = await supabase
-    .from('items')
-    .update({ unidad_default })
-    .eq('id', id)
-    .eq('user_id', user.id)
-    .select('id, nombre, n1, n2, n3, unidad_default, created_at')
-    .single()
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(data)
-}
-
-// DELETE /api/items?id=xxx
 export async function DELETE(request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { searchParams } = new URL(request.url)
-  const id = searchParams.get('id')
+  const id = new URL(request.url).searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'id requerido' }, { status: 400 })
 
-  const { error } = await supabase
-    .from('items')
-    .delete()
-    .eq('id', id)
-    .eq('user_id', user.id)
+  const { data: item } = await supabase
+    .from('items').select('nombre').eq('id', id).eq('user_id', user.id).single()
+  if (!item) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
 
+  // Verificar gastos asociados
+  const { count } = await supabase.from('gastos')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', user.id).eq('n4', item.nombre)
+  if (count > 0)
+    return NextResponse.json({ error: `Tiene ${count} gastos asociados`, count }, { status: 409 })
+
+  const { error } = await supabase.from('items').delete().eq('id', id).eq('user_id', user.id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })
 }
