@@ -50,8 +50,8 @@ export default function ExpenseForm({ initial, onSave, onCancel }) {
     if (unidad) set('unidad', unidad)
   }
 
-  // válido cuando tiene los 3 niveles de categoría, el ítem (n4), cantidad, monto y fecha
-  const valid = form.n1 && form.n2 && form.n3 && form.n4 && form.cantidad && form.monto && form.fecha
+  // n1 obligatorio, n2/n3 opcionales (depende de la profundidad del árbol de categorías)
+  const valid = form.n1 && form.n4 && form.cantidad && form.monto && form.fecha
 
   const handleSubmit = async () => {
     if (!valid || saving) return
@@ -98,21 +98,21 @@ export default function ExpenseForm({ initial, onSave, onCancel }) {
               onChange={handleItemChange}
               onUnitChange={handleUnitFromItem}
             />
-            {/* Resumen de categoría seleccionada */}
-            {form.n1 && form.n2 && form.n3 && !selectedItem && (
+            {/* Resumen de categoría cuando hay n1 al menos */}
+            {form.n1 && !selectedItem && (
               <div style={{ marginTop:10, display:'flex', gap:4, alignItems:'center', flexWrap:'wrap' }}>
                 <span style={{ fontSize:11, color:'var(--text-muted)' }}>Categoría:</span>
-                {[form.n1, form.n2, form.n3].map((x,i) => (
+                {[form.n1, form.n2, form.n3].filter(Boolean).map((x,i,arr) => (
                   <span key={i} style={{ fontSize:11, fontWeight:700, color:(N1_COLORS[form.n1]||{}).text||'var(--accent)', display:'flex', alignItems:'center', gap:3 }}>
-                    {x}{i<2 && <span style={{ opacity:.4, marginLeft:3 }}>›</span>}
+                    {x}{i<arr.length-1 && <span style={{ opacity:.4, marginLeft:3 }}>›</span>}
                   </span>
                 ))}
               </div>
             )}
-            {/* Si hay ítem seleccionado pero no tiene categorías completas, avisar */}
-            {selectedItem && !(form.n1 && form.n2 && form.n3) && (
+            {/* Aviso solo si el ítem no tiene NINGUNA categoría (ni siquiera n1) */}
+            {selectedItem && !form.n1 && (
               <p style={{ fontSize:11, color:'#d97706', marginTop:8, fontWeight:600 }}>
-                ⚠ Este ítem no tiene categoría asignada — editalo en Configuración → Mis Ítems
+                ⚠ Este ítem no tiene categoría — editalo en Configuración → Mis Ítems
               </p>
             )}
           </div>

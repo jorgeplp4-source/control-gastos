@@ -211,11 +211,12 @@ function RecurrenteForm({ initial, onSave, onCancel }) {
 
   const { categories } = useCategories()
   const opts_n1 = uniq(categories.map(c=>c.n1)).filter(Boolean).sort()
-  const opts_n2 = uniq(categories.filter(c=>c.n1===form.n1).map(c=>c.n2)).filter(Boolean).sort()
-  const opts_n3 = uniq(categories.filter(c=>c.n1===form.n1&&c.n2===form.n2).map(c=>c.n3)).filter(Boolean).sort()
-  const opts_n4 = uniq(categories.filter(c=>c.n1===form.n1&&c.n2===form.n2&&c.n3===form.n3).map(c=>c.n4)).filter(Boolean).sort()
+  const opts_n2 = uniq(categories.filter(c=>c.n1===form.n1&&c.n2).map(c=>c.n2)).filter(Boolean).sort()
+  const opts_n3 = uniq(categories.filter(c=>c.n1===form.n1&&(!form.n2||c.n2===form.n2)&&c.n3).map(c=>c.n3)).filter(Boolean).sort()
+  const opts_n4 = uniq(categories.filter(c=>c.n1===form.n1&&(!form.n2||c.n2===form.n2)&&(!form.n3||c.n3===form.n3)&&c.n4).map(c=>c.n4)).filter(Boolean).sort()
 
-  const valid = form.n1&&form.n2&&form.n3&&form.n4&&form.monto&&form.fecha_inicio
+  // n1 obligatorio, n2/n3 opcionales
+  const valid = form.n1&&form.n4&&form.monto&&form.fecha_inicio
 
   const inp = { padding:'9px 12px', border:'1.5px solid var(--border)', borderRadius:8, fontSize:13, background:'var(--surface)', outline:'none', width:'100%', color:'var(--text-primary)', fontFamily:'inherit', boxSizing:'border-box' }
   const lbl = { display:'block', fontSize:11, fontWeight:700, color:'var(--text-muted)', marginBottom:5, textTransform:'uppercase', letterSpacing:'0.05em' }
@@ -228,18 +229,30 @@ function RecurrenteForm({ initial, onSave, onCancel }) {
           : <><IconPlus size={18} weight="duotone" color="var(--accent)" aria-hidden="true" /> Nuevo gasto recurrente</>}
       </h3>
 
-      {/* Cascada de categoría */}
+      {/* Cascada de categoría — n1 obligatorio, n2/n3 opcionales según árbol */}
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(140px,1fr))', gap:12, marginBottom:16 }}>
         {[
-          { label:'Tipo (N1)',         key:'n1', opts:opts_n1, deps:[]                         },
-          { label:'Área (N2)',         key:'n2', opts:opts_n2, deps:[!form.n1]                  },
-          { label:'Subcategoría (N3)', key:'n3', opts:opts_n3, deps:[!form.n1,!form.n2]         },
-          { label:'Ítem (N4)',         key:'n4', opts:opts_n4, deps:[!form.n1,!form.n2,!form.n3]},
-        ].map(({ label, key, opts, deps }) => (
+          { label:'Tipo (N1) *',       key:'n1', opts:opts_n1, disabled:false,                          optional:false },
+          { label:'Área (N2)',         key:'n2', opts:opts_n2, disabled:!form.n1||!opts_n2.length,       optional:true  },
+          { label:'Subcategoría (N3)', key:'n3', opts:opts_n3, disabled:!form.n1||!opts_n3.length,       optional:true  },
+          { label:'Ítem (N4) *',       key:'n4', opts:opts_n4, disabled:!form.n1,                        optional:false },
+        ].map(({ label, key, opts, disabled, optional }) => (
           <div key={key}>
             <label style={lbl}>{label}</label>
-            <select value={form[key]} onChange={e=>set(key,e.target.value)} disabled={deps.some(Boolean)} style={{ ...inp, opacity:deps.some(Boolean)?0.5:1 }} aria-label={label}>
-              <option value="">Seleccionar…</option>
+            <select
+              value={form[key]}
+              onChange={e => {
+                // Al cambiar n1/n2/n3 limpiar los niveles inferiores
+                if (key==='n1') setForm(p=>({...p,n1:e.target.value,n2:'',n3:'',n4:''}))
+                else if (key==='n2') setForm(p=>({...p,n2:e.target.value,n3:'',n4:''}))
+                else if (key==='n3') setForm(p=>({...p,n3:e.target.value,n4:''}))
+                else set(key,e.target.value)
+              }}
+              disabled={disabled}
+              style={{ ...inp, opacity:disabled?0.5:1 }}
+              aria-label={label}
+            >
+              <option value="">{optional && !disabled ? '— opcional —' : 'Seleccionar…'}</option>
               {opts.map(o=><option key={o}>{o}</option>)}
             </select>
           </div>

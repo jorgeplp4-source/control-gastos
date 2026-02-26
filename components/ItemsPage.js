@@ -104,12 +104,12 @@ function EditModal({ item, onSave, onClose }) {
   const [error, setError]   = useState(null)
 
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
-  const valid = form.nombre.trim().length >= 2 && form.n1 && form.n2 && form.n3
+  const valid = form.nombre.trim().length >= 2 && form.n1
 
   // Opciones de cascada
   const opts_n1 = useMemo(() => uniq(categories.map(c => c.n1)), [categories])
   const opts_n2 = useMemo(() => form.n1 ? uniq(categories.filter(c => c.n1 === form.n1).map(c => c.n2)) : [], [categories, form.n1])
-  const opts_n3 = useMemo(() => form.n2 ? uniq(categories.filter(c => c.n1 === form.n1 && c.n2 === form.n2).map(c => c.n3)) : [], [categories, form.n1, form.n2])
+  const opts_n3 = useMemo(() => form.n1 ? uniq(categories.filter(c => c.n1 === form.n1 && (!form.n2 || c.n2 === form.n2) && c.n3).map(c => c.n3)) : [], [categories, form.n1, form.n2])
 
   const handleSave = async () => {
     if (!valid) return

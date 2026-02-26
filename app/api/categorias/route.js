@@ -18,7 +18,7 @@ export async function GET(request) {
       .or(`user_id.eq.${user.id},user_id.is.null`)
       .order('n1').order('n2').order('n3').order('orden').order('n4')
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-    return NextResponse.json(data, { headers: { 'Cache-Control': 'private, max-age=300' } })
+    return NextResponse.json(data)
   }
 
   const { data, error } = await supabase

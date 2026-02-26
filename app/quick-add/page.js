@@ -28,13 +28,13 @@ export default function QuickAddPage() {
 
   const opts_n1 = useMemo(() => uniq(categories.map(c => c.n1)), [categories])
   const opts_n2 = useMemo(() => uniq(categories.filter(c => c.n1 === n1).map(c => c.n2)), [categories, n1])
-  const opts_n3 = useMemo(() => uniq(categories.filter(c => c.n1 === n1 && c.n2 === n2).map(c => c.n3)), [categories, n1, n2])
-  const opts_n4 = useMemo(() => uniq(categories.filter(c => c.n1 === n1 && c.n2 === n2 && c.n3 === n3).map(c => c.n4)), [categories, n1, n2, n3])
+  const opts_n3 = useMemo(() => uniq(categories.filter(c => c.n1 === n1 && (!n2 || c.n2 === n2) && c.n3).map(c => c.n3)), [categories, n1, n2])
+  const opts_n4 = useMemo(() => uniq(categories.filter(c => c.n1 === n1 && (!n2 || c.n2 === n2) && (!n3 || c.n3 === n3) && c.n4).map(c => c.n4)), [categories, n1, n2, n3])
 
   const N1_COLORS = { Fijos:'#1e40af', Variables:'#059669', Extraordinarios:'#d97706', Imprevistos:'#dc2626' }
 
   const handleSave = async () => {
-    if (!monto || !n1 || !n2 || !n3 || !n4) return
+    if (!monto || !n1 || !n4) return
     setSaving(true)
     const { data: { user } } = await supabase.auth.getUser()
     await supabase.from('gastos').insert({
