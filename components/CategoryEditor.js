@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { UNITS, N1_COLORS, uniq } from '../lib/constants'
+import { N1_COLORS, uniq } from '../lib/constants'
+import { useUnits } from '../lib/useUnits'
 import { useCategories } from '../lib/useCategories'
 import { ItemFormModal } from './ItemSearch'
 import {

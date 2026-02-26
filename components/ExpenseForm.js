@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
-import { UNITS, N1_COLORS } from '../lib/constants'
+import { N1_COLORS } from '../lib/constants'
+import { useUnits } from '../lib/useUnits'
 import ItemSearch from './ItemSearch'
 import {
   IconEditar, IconRegistrar, IconCerrar, IconGuardar,
@@ -18,6 +19,7 @@ export default function ExpenseForm({ initial, onSave, onCancel }) {
   const today = new Date().toISOString().split('T')[0]
 
   // form tiene n1, n2, n3, n4 (n4 = nombre del ítem)
+  const { units } = useUnits()
   const blank = { n1:'', n2:'', n3:'', n4:'', cantidad:'', unidad:'unidad', monto:'', fecha:today, observaciones:'' }
   const [form, setForm]         = useState(initial ? { ...initial } : blank)
   const [selectedItem, setSelectedItem] = useState(null)
@@ -120,7 +122,7 @@ export default function ExpenseForm({ initial, onSave, onCancel }) {
           {/* Campos principales */}
           <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(148px,1fr))', gap:16 }}>
             <div><label style={lbl}>Cantidad</label><input type="number" min="0" step="0.01" value={form.cantidad} onChange={e=>set('cantidad',e.target.value)} placeholder="0" style={inp} /></div>
-            <div><label style={lbl}>Unidad</label><select value={form.unidad} onChange={e=>set('unidad',e.target.value)} style={sel}>{UNITS.map(u=><option key={u}>{u}</option>)}</select></div>
+            <div><label style={lbl}>Unidad</label><select value={form.unidad} onChange={e=>set('unidad',e.target.value)} style={sel}>{units.map(u=><option key={u}>{u}</option>)}</select></div>
             <div><label style={lbl}>Monto ($)</label><input type="number" min="0" step="1" value={form.monto} onChange={e=>set('monto',e.target.value)} placeholder="0" style={inp} /></div>
             <div><label style={lbl}>Fecha</label><input type="date" value={form.fecha} onChange={e=>set('fecha',e.target.value)} style={inp} /></div>
           </div>

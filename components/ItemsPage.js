@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { UNITS, N1_COLORS, uniq } from '../lib/constants'
+import { N1_COLORS, uniq } from '../lib/constants'
+import { useUnits } from '../lib/useUnits'
 import { useCategories } from '../lib/useCategories'
 import {
   IconItems, IconBuscar, IconEditar, IconEliminar, IconGuardar,
@@ -28,7 +29,7 @@ function UnitSelect({ value, onChange, style = {} }) {
         fontSize: 12, fontWeight: 600, background: 'var(--surface)', color: 'var(--text-primary)',
         fontFamily: 'inherit', cursor: 'pointer', outline: 'none', ...style,
       }}>
-      {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+      {units.map(u => <option key={u} value={u}>{u}</option>)}
     </select>
   )
 }
@@ -95,6 +96,7 @@ function ItemRow({ item, onEdit, onDelete }) {
 // ── Modal de edición ──────────────────────────────────────────────────────────
 function EditModal({ item, onSave, onClose }) {
   const { categories } = useCategories()
+  const { units }      = useUnits()
   const [form, setForm] = useState({
     nombre:         item.nombre         || '',
     unidad_default: item.unidad_default || 'unidad',

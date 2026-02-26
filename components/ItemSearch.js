@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { UNITS, N1_COLORS, uniq } from '../lib/constants'
+import { N1_COLORS, uniq } from '../lib/constants'
+import { useUnits } from '../lib/useUnits'
 import { useCategories } from '../lib/useCategories'
 import {
   IconBuscar, IconCerrar, IconPlus, IconCheck,
@@ -142,6 +143,7 @@ function AdaptiveCascade({ value, onChange }) {
 // ── Modal crear / editar ítem ─────────────────────────────────────────────────
 export function ItemFormModal({ item = null, initialNombre = '', onSave, onClose }) {
   const isEdit = !!item?.id
+  const { units } = useUnits()
 
   const [nombre, setNombre] = useState(item?.nombre || initialNombre)
   const [unidad, setUnidad] = useState(item?.unidad_default || 'unidad')
@@ -245,7 +247,7 @@ export function ItemFormModal({ item = null, initialNombre = '', onSave, onClose
           <div>
             <label style={lbl}>Unidad por defecto</label>
             <select value={unidad} onChange={e => setUnidad(e.target.value)} style={{ ...inp, cursor: 'pointer' }}>
-              {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+              {units.map(u => <option key={u} value={u}>{u}</option>)}
             </select>
           </div>
 
