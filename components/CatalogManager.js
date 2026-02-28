@@ -604,7 +604,7 @@ export default function CatalogManager() {
 
       {/* ── Vista lista completa de ítems ─────────────────────────────────── */}
       {view==='list' && (
-        <div style={{ border:'1px solid var(--border)', borderTop:'none', borderRadius:'0 0 12px 12px', overflow:'hidden', background:'var(--surface)', minHeight:360, maxHeight:520, display:'flex', flexDirection:'column' }}>
+        <div style={{ border:'1px solid var(--border)', borderTop:'none', borderRadius:'0 0 12px 12px', overflow:'hidden', background:'var(--surface)', display:'flex', flexDirection:'column' }}>
           <AllItemsList items={items} units={units} onEditItem={editItem} onDeleteItem={delItem} refetchItems={refetchItems}/>
         </div>
       )}

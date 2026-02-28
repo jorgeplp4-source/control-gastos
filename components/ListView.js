@@ -7,7 +7,7 @@ import {
   IconDinero, IconRecibo, IconCalendario, IconTop,
   IconOrdenar, IconArriba, IconAbajo, IconFiltros,
   IconAdvertencia, IconCaretDown, IconCaretRight,
-  IconRecurrentes, IconVer, IconOcultar,
+  IconRecurrentes, IconVer, IconOcultar, IconCheck,
 } from '../lib/icons'
 
 // ── Columnas ─────────────────────────────────────────────────────────────────
@@ -25,6 +25,13 @@ const ALL_COLS = [
 const DEFAULT_ORDER = ['monto','n4','cantidad','n1','n2','n3','fecha','nota','acciones']
 const LS_KEY       = 'listview_col_order'
 const LS_SIDEBAR   = 'listview_sidebar_open'
+const LS_HIDDEN    = 'listview_hidden_cols'
+
+function loadHidden(settings) {
+  if (settings?.hidden_cols) return new Set(settings.hidden_cols)
+  try { const s = localStorage.getItem(LS_HIDDEN); if (s) return new Set(JSON.parse(s)) } catch {}
+  return new Set()
+}
 
 function loadOrder(settings) {
   if (settings?.col_order?.length) return settings.col_order
@@ -332,6 +339,8 @@ export default function ListView({ gastos, onDelete, onEdit }) {
   const [colOrder, setColOrder] = useState(() => loadOrder(settings))
   const [dragFrom, setDragFrom] = useState(null)
   const [dragOver, setDragOver] = useState(null)
+  const [hiddenCols, setHiddenCols] = useState(() => loadHidden(settings))
+  const [showColPanel, setShowColPanel] = useState(false)
 
   const applyColOrder = (newOrder) => {
     setColOrder(newOrder)
@@ -374,9 +383,18 @@ export default function ListView({ gastos, onDelete, onEdit }) {
     else { setSortField(field); setSortDir('desc') }
   }
 
+  const toggleColVisible = (id) => {
+    if (id === 'acciones') return // acciones siempre visible
+    const next = new Set(hiddenCols)
+    next.has(id) ? next.delete(id) : next.add(id)
+    setHiddenCols(next)
+    try { localStorage.setItem(LS_HIDDEN, JSON.stringify([...next])) } catch {}
+    saveSettings?.({ hidden_cols: [...next] })
+  }
+
   const cols = useMemo(() =>
-    colOrder.map(id => ALL_COLS.find(c => c.id === id)).filter(Boolean),
-    [colOrder])
+    colOrder.map(id => ALL_COLS.find(c => c.id === id)).filter(Boolean).filter(c => !hiddenCols.has(c.id)),
+    [colOrder, hiddenCols])
 
   const filtered = useMemo(() => {
     let list = gastos.filter(g => {
@@ -562,7 +580,7 @@ export default function ListView({ gastos, onDelete, onEdit }) {
 
         {/* Tabla */}
         <div style={{ ...S.card, padding:0, overflow:'hidden' }}>
-          <div style={{ padding:'8px 14px', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+          <div style={{ padding:'8px 14px', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center', gap:8, flexWrap:'wrap' }}>
             <div style={S.st}>{filtered.length} registros
               {recurrentes.length > 0 && (
                 <span style={{ marginLeft:8, fontSize:9, fontWeight:500, color:'var(--text-muted)', fontStyle:'italic' }}>
@@ -570,7 +588,45 @@ export default function ListView({ gastos, onDelete, onEdit }) {
                 </span>
               )}
             </div>
-            <span style={{ fontSize:10, color:'var(--text-muted)', fontStyle:'italic' }}>⠿ Arrastrá columnas para reordenar</span>
+            <div style={{ display:'flex', gap:6, alignItems:'center', position:'relative' }}>
+              <span style={{ fontSize:10, color:'var(--text-muted)', fontStyle:'italic' }}>⠿ Arrastrá para reordenar</span>
+              {/* Botón ocultar/mostrar columnas */}
+              <button onClick={() => setShowColPanel(p => !p)}
+                style={{ display:'flex', alignItems:'center', gap:4, padding:'4px 10px', border:'1.5px solid var(--border)', borderRadius:6, background: showColPanel ? 'var(--accent)' : 'var(--surface)', color: showColPanel ? '#fff' : 'var(--text-muted)', fontFamily:'inherit', fontSize:11, fontWeight:600, cursor:'pointer', transition:'all .15s' }}>
+                <IconOcultar size={12} aria-hidden="true" />
+                Columnas {hiddenCols.size > 0 && <span style={{ background: showColPanel ? 'rgba(255,255,255,.3)' : 'var(--accent)', color: showColPanel ? '#fff' : '#fff', borderRadius:99, padding:'0px 5px', fontSize:9, fontWeight:800 }}>{hiddenCols.size} oculta{hiddenCols.size !== 1 ? 's' : ''}</span>}
+              </button>
+              {/* Panel de columnas */}
+              {showColPanel && (
+                <div style={{ position:'absolute', top:'calc(100% + 6px)', right:0, zIndex:300, background:'var(--surface)', border:'1.5px solid var(--border)', borderRadius:10, boxShadow:'0 8px 24px rgba(0,0,0,.12)', padding:'10px 12px', minWidth:180 }}>
+                  <div style={{ fontSize:10, fontWeight:800, textTransform:'uppercase', letterSpacing:'.06em', color:'var(--text-muted)', marginBottom:8 }}>Mostrar columnas</div>
+                  {ALL_COLS.filter(c => c.id !== 'acciones').map(col => {
+                    const visible = !hiddenCols.has(col.id)
+                    return (
+                      <label key={col.id} style={{ display:'flex', alignItems:'center', gap:8, padding:'5px 4px', cursor:'pointer', borderRadius:5, userSelect:'none' }}
+                        onMouseEnter={e => e.currentTarget.style.background='var(--surface2)'}
+                        onMouseLeave={e => e.currentTarget.style.background='transparent'}>
+                        <div onClick={() => toggleColVisible(col.id)}
+                          style={{ width:16, height:16, borderRadius:4, border:`2px solid ${visible ? 'var(--accent)' : 'var(--border)'}`, background: visible ? 'var(--accent)' : 'transparent', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, cursor:'pointer', transition:'all .12s' }}>
+                          {visible && <IconCheck size={10} color="#fff" aria-hidden="true" />}
+                        </div>
+                        <span style={{ fontSize:12, color: visible ? 'var(--text-primary)' : 'var(--text-muted)', fontWeight: visible ? 600 : 400 }}>{col.label}</span>
+                      </label>
+                    )
+                  })}
+                  <div style={{ marginTop:8, borderTop:'1px solid var(--border)', paddingTop:7, display:'flex', gap:5 }}>
+                    <button onClick={() => { setHiddenCols(new Set()); try{localStorage.removeItem(LS_HIDDEN)}catch{} }}
+                      style={{ flex:1, padding:'4px', border:'none', borderRadius:5, background:'var(--surface2)', color:'var(--text-muted)', fontSize:11, cursor:'pointer', fontFamily:'inherit' }}>
+                      Mostrar todo
+                    </button>
+                    <button onClick={() => setShowColPanel(false)}
+                      style={{ flex:1, padding:'4px', border:'none', borderRadius:5, background:'var(--accent)', color:'#fff', fontSize:11, cursor:'pointer', fontFamily:'inherit', fontWeight:600 }}>
+                      Listo
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
           <div style={{ overflowX:'auto' }}>
             <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
