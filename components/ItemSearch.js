@@ -165,7 +165,9 @@ export function ItemFormModal({ item = null, initialNombre = '', onSave, onClose
         <div>
           <label style={S.lbl}>Unidad por defecto</label>
           <select value={unidad} onChange={e => setUnidad(e.target.value)} style={{ ...S.inp, cursor: 'pointer' }}>
-            {units.map(u => <option key={u} value={u}>{u}</option>)}
+            {(units.length > 0 ? units : ['unidad','kg','g','l','ml','docena','caja','pack','par']).map(u => (
+              <option key={u} value={u}>{u}</option>
+            ))}
           </select>
         </div>
       </div>
