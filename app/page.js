@@ -1,166 +1,204 @@
 'use client'
-// app/quick-add/page.js — Ruta ultra-minimalista para pantalla de inicio (PWA shortcut)
-// force-dynamic: evita prerender estático (usa Supabase + Context que no corren en SSR)
-export const dynamic = 'force-dynamic'
-import { useState, useMemo } from 'react'
-import { createClient } from '../../lib/supabase-browser'
-import { uniq } from '../../lib/constants'
-import { useApp } from '../../context/AppContext'
-import { useCategories } from '../../lib/useCategories'
+import { useState, useEffect } from 'react'
+import dynamic from 'next/dynamic'
+import { createClient } from '../lib/supabase-browser'
+import { useRouter } from 'next/navigation'
+import { useApp } from '../context/AppContext'
 import {
-  IconExito, IconRapido, IconDinero, IconEtiquetas, IconCalendario, IconArrowRight,
-} from '../../lib/icons'
+  IconDashboard, IconRegistrar, IconListado, IconConfig,
+  IconCerrar, IconSpinner, IconSalir, IconBilletera, IconCheck,
+} from '../lib/icons'
 
-export default function QuickAddPage() {
-  const { fmtMoney } = useApp()
-  const { categories } = useCategories()
+function Spinner({ label = 'Cargando…' }) {
+  return (
+    <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)' }}>
+      <IconSpinner size={36} style={{ animation: 'spin 1s linear infinite', display: 'inline-block' }} aria-hidden="true" />
+      <p style={{ fontWeight: 600, fontSize: 14, marginTop: 8 }}>{label}</p>
+      <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
+    </div>
+  )
+}
+
+const Dashboard        = dynamic(() => import('../components/Dashboard'),       { ssr: false, loading: () => <Spinner label="Cargando dashboard…"     /> })
+const ExpenseForm      = dynamic(() => import('../components/ExpenseForm'),      { ssr: false, loading: () => <Spinner label="Cargando formulario…"    /> })
+const ListView         = dynamic(() => import('../components/ListView'),         { ssr: false, loading: () => <Spinner label="Cargando listado…"       /> })
+const ConfigPage       = dynamic(() => import('../components/ConfigPage'),       { ssr: false, loading: () => <Spinner label="Cargando configuración…" /> })
+const NotificationsBell = dynamic(() => import('../components/NotificationsBell'), { ssr: false })
+const Onboarding       = dynamic(() => import('../components/Onboarding'),      { ssr: false })
+
+// ── Definición de tabs — Icon: componente Phosphor ────────────────────────────
+const NAV_TABS = [
+  { id: 'dashboard',     labelKey: 'nav.dashboard',    fallback: 'Dashboard', Icon: IconDashboard },
+  { id: 'registro',      labelKey: 'nav.registro',     fallback: 'Registrar', Icon: IconRegistrar },
+  { id: 'listado',       labelKey: 'nav.listado',      fallback: 'Listado',   Icon: IconListado   },
+  { id: 'configuracion', labelKey: 'nav.configuracion', fallback: 'Config',   Icon: IconConfig    },
+]
+
+export default function Home() {
+  const [tab, setTab]         = useState('dashboard')
+  const [gastos, setGastos]   = useState([])
+  const [loading, setLoading] = useState(true)
+  const [editTarget, setEditTarget] = useState(null)
+  const [toast, setToast]     = useState(null)
+  const [user, setUser]       = useState(null)
+  const router   = useRouter()
   const supabase = createClient()
-  const today = new Date().toISOString().split('T')[0]
+  const { t, loadingSettings } = useApp()
 
-  const [monto, setMonto] = useState('')
-  const [n1, setN1]       = useState('')
-  const [n2, setN2]       = useState('')
-  const [n3, setN3]       = useState('')
-  const [n4, setN4]       = useState('')
-  const [fecha, setFecha] = useState(today)
-  const [saving, setSaving] = useState(false)
-  const [done, setDone]   = useState(false)
-
-  const opts_n1 = useMemo(() => uniq(categories.map(c => c.n1)), [categories])
-  const opts_n2 = useMemo(() => uniq(categories.filter(c => c.n1 === n1).map(c => c.n2)), [categories, n1])
-  const opts_n3 = useMemo(() => uniq(categories.filter(c => c.n1 === n1 && (!n2 || c.n2 === n2) && c.n3).map(c => c.n3)), [categories, n1, n2])
-  const opts_n4 = useMemo(() => uniq(categories.filter(c => c.n1 === n1 && (!n2 || c.n2 === n2) && (!n3 || c.n3 === n3) && c.n4).map(c => c.n4)), [categories, n1, n2, n3])
-
-  const N1_COLORS = { Fijos:'#1e40af', Variables:'#059669', Extraordinarios:'#d97706', Imprevistos:'#dc2626' }
-
-  const handleSave = async () => {
-    if (!monto || !n1 || !n4) return
-    setSaving(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    await supabase.from('gastos').insert({
-      user_id: user.id, n1, n2, n3, n4,
-      monto: parseFloat(monto), cantidad: 1, unidad: 'unidad',
-      fecha, observaciones: '(Registro rápido)',
-    })
-    setSaving(false)
-    setDone(true)
-    setTimeout(() => {
-      setMonto(''); setN1(''); setN2(''); setN3(''); setN4(''); setDone(false)
-    }, 2000)
+  const showToast = (msg, ok = true) => {
+    setToast({ msg, ok })
+    setTimeout(() => setToast(null), 2800)
   }
 
-  // ── Estado "registrado" ─────────────────────────────────────────────────────
-  if (done) return (
-    <div style={QS.wrap}>
-      <div style={{ textAlign: 'center' }}>
-        <IconExito size={72} weight="fill" color="#10b981" aria-label="Registrado exitosamente" style={{ marginBottom: 16 }} />
-        <h2 style={{ color: '#10b981', fontWeight: 800, fontSize: 24 }}>¡Registrado!</h2>
-        <p style={{ color: '#64748b', marginTop: 8 }}>{fmtMoney(parseFloat(monto))}</p>
+  useEffect(() => {
+    const timeout = setTimeout(() => router.push('/login'), 10000)
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      clearTimeout(timeout)
+      if (!user) { router.push('/login'); return }
+      setUser(user)
+      fetch('/api/gastos')
+        .then(r => r.json())
+        .then(d => { setGastos(Array.isArray(d) ? d : []); setLoading(false) })
+        .catch(() => setLoading(false))
+    }).catch(() => { clearTimeout(timeout); router.push('/login') })
+    return () => clearTimeout(timeout)
+  }, [])
+
+  const handleSave = async (form) => {
+    const isEdit = !!form.id
+    const { _recurrente, ...gastoData } = form
+    const res = await fetch('/api/gastos', {
+      method: isEdit ? 'PUT' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(gastoData),
+    })
+    const record = await res.json()
+    if (_recurrente && record.id) {
+      fetch('/api/recurrentes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          n1: gastoData.n1, n2: gastoData.n2, n3: gastoData.n3, n4: gastoData.n4,
+          monto: gastoData.monto, unidad: gastoData.unidad,
+          observaciones: gastoData.observaciones, ..._recurrente,
+        }),
+      })
+    }
+    setGastos(prev => {
+      const rest = prev.filter(g => g.id !== record.id)
+      return [record, ...rest].sort((a, b) => b.fecha.localeCompare(a.fecha))
+    })
+    setEditTarget(null)
+    setTab('listado')
+    showToast(isEdit ? 'Gasto actualizado' : _recurrente ? 'Gasto + recurrencia creados' : 'Gasto registrado')
+  }
+
+  const handleDelete = async (id) => {
+    await fetch(`/api/gastos?id=${id}`, { method: 'DELETE' })
+    setGastos(prev => prev.filter(g => g.id !== id))
+    showToast('Gasto eliminado', false)
+  }
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut()
+    router.push('/login')
+  }
+
+  const navigateTo = (id) => { setTab(id); if (id !== 'registro') setEditTarget(null) }
+
+  // ── Loading global ──────────────────────────────────────────────────────────
+  if (loading || loadingSettings) return (
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)' }}>
+      <div style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
+        <IconSpinner size={48} style={{ animation: 'spin 1s linear infinite', display: 'inline-block', marginBottom: 12 }} aria-hidden="true" />
+        <p style={{ fontWeight: 600 }}>{t('common.loading') || 'Cargando…'}</p>
+        <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
       </div>
     </div>
   )
 
   return (
-    <div style={QS.wrap}>
-      <div style={QS.card}>
+    <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
 
-        {/* Header */}
-        <div style={{ textAlign: 'center', marginBottom: 28 }}>
-          <IconRapido size={36} weight="fill" color="var(--accent)" aria-hidden="true" style={{ marginBottom: 6 }} />
-          <h1 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>Gasto rápido</h1>
+      {/* ── TOAST ─────────────────────────────────────────────────────────── */}
+      {toast && (
+        <div role="alert" aria-live="polite"
+          style={{ position: 'fixed', top: 20, right: 20, zIndex: 9999, background: toast.ok ? '#10b981' : '#ef4444', color: '#fff', padding: '12px 18px', borderRadius: 12, fontWeight: 700, fontSize: 14, boxShadow: '0 8px 24px rgba(0,0,0,.2)', display: 'flex', alignItems: 'center', gap: 8 }}>
+          {toast.ok
+            ? <IconCheck size={16} weight="bold" aria-hidden="true" />
+            : <IconCerrar size={16} weight="bold" aria-hidden="true" />}
+          {toast.msg}
         </div>
+      )}
 
-        {/* Monto */}
-        <div style={{ marginBottom: 20 }}>
-          <label style={QS.lbl}>
-            <IconDinero size={12} aria-hidden="true" style={{ marginRight: 4 }} />
-            Monto
-          </label>
-          <input
-            type="number" inputMode="decimal" min="0" step="1"
-            value={monto} onChange={e => setMonto(e.target.value)}
-            placeholder="0" autoFocus
-            aria-label="Ingresá el monto del gasto"
-            style={{ ...QS.inp, fontSize: 28, fontWeight: 800, textAlign: 'center', color: 'var(--accent)' }}
-          />
-          {monto && <p style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 14, marginTop: 4 }}>{fmtMoney(parseFloat(monto) || 0)}</p>}
-        </div>
+      {/* ── HEADER ────────────────────────────────────────────────────────── */}
+      <header style={{ background: 'var(--header-bg)', boxShadow: '0 4px 24px rgba(0,0,0,.3)', position: 'sticky', top: 0, zIndex: 100 }}>
+        <div style={{ maxWidth: 1200, margin: '0 auto', padding: '14px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
 
-        {/* Categoría */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 }}>
-          <label style={QS.lbl}>
-            <IconEtiquetas size={12} aria-hidden="true" style={{ marginRight: 4 }} />
-            Categoría
-          </label>
-
-          {/* N1 chips */}
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }} role="group" aria-label="Tipo de gasto">
-            {opts_n1.map(o => (
-              <button key={o} onClick={() => { setN1(o); setN2(''); setN3(''); setN4('') }}
-                aria-pressed={n1 === o}
-                style={{ ...QS.chip, ...(n1 === o ? { background: N1_COLORS[o] || '#3b82f6', color: '#fff', borderColor: N1_COLORS[o] } : {}) }}>
-                {o}
-              </button>
-            ))}
+          {/* Logo */}
+          <div>
+            <h1 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: 'var(--header-text)', letterSpacing: '-0.5px', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <IconBilletera size={22} weight="fill" color="var(--header-text)" aria-hidden="true" />
+              Control de Gastos
+            </h1>
+            <p style={{ margin: 0, color: 'var(--header-muted)', fontSize: 11 }}>{gastos.length} registros · {user?.email}</p>
           </div>
 
-          {n1 && (
-            <select value={n2} onChange={e => { setN2(e.target.value); setN3(''); setN4('') }} style={QS.sel} aria-label="Área">
-              <option value="">Área…</option>
-              {opts_n2.map(o => <option key={o}>{o}</option>)}
-            </select>
-          )}
-          {n2 && (
-            <select value={n3} onChange={e => { setN3(e.target.value); setN4('') }} style={QS.sel} aria-label="Subcategoría">
-              <option value="">Subcategoría…</option>
-              {opts_n3.map(o => <option key={o}>{o}</option>)}
-            </select>
-          )}
-          {n3 && (
-            <select value={n4} onChange={e => setN4(e.target.value)} style={QS.sel} aria-label="Ítem">
-              <option value="">Ítem…</option>
-              {opts_n4.map(o => <option key={o}>{o}</option>)}
-            </select>
-          )}
+          {/* Desktop nav */}
+          <nav className="desktop-nav" aria-label="Navegación principal"
+            style={{ display: 'flex', gap: 5, flexWrap: 'wrap', alignItems: 'center' }}>
+            {NAV_TABS.map(({ id, labelKey, fallback, Icon: NavIcon }) => {
+              const active = tab === id
+              return (
+                <button key={id} onClick={() => navigateTo(id)}
+                  aria-current={active ? 'page' : undefined}
+                  style={{ padding: '7px 14px', borderRadius: 8, border: 'none', fontWeight: 700, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap', transition: 'all .15s', background: active ? 'linear-gradient(135deg,var(--accent),var(--accent-dark))' : 'rgba(255,255,255,.08)', color: active ? '#fff' : 'var(--header-muted)', boxShadow: active ? '0 2px 10px rgba(59,130,246,.35)' : 'none' }}>
+                  <NavIcon size={15} weight={active ? 'fill' : 'regular'} aria-hidden="true" />
+                  {t(labelKey) || fallback}
+                </button>
+              )
+            })}
+            <NotificationsBell />
+            <button onClick={handleLogout} aria-label="Cerrar sesión"
+              style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,.15)', background: 'transparent', color: 'var(--header-muted)', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
+              <IconSalir size={14} aria-hidden="true" />
+              {t('nav.salir') || 'Salir'}
+            </button>
+          </nav>
         </div>
 
-        {/* Fecha */}
-        <div style={{ marginBottom: 24 }}>
-          <label style={QS.lbl}>
-            <IconCalendario size={12} aria-hidden="true" style={{ marginRight: 4 }} />
-            Fecha
-          </label>
-          <input type="date" value={fecha} onChange={e => setFecha(e.target.value)} style={QS.inp} aria-label="Fecha del gasto" />
-        </div>
+        <style>{`
+          @media(max-width:768px){.desktop-nav{display:none!important}.mobile-nav{display:flex!important}}
+          @media(min-width:769px){.mobile-nav{display:none!important}}
+        `}</style>
+      </header>
 
-        {/* Botón guardar */}
-        <button
-          onClick={handleSave}
-          disabled={!monto || !n4 || saving}
-          aria-busy={saving}
-          style={{ ...QS.btnSave, opacity: monto && n4 ? 1 : 0.4 }}>
-          <IconExito size={18} weight="fill" aria-hidden="true" />
-          {saving ? 'Registrando…' : 'Registrar gasto'}
-        </button>
+      {/* ── MOBILE BOTTOM NAV ──────────────────────────────────────────────── */}
+      <nav className="mobile-nav" aria-label="Navegación móvil"
+        style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: 'var(--surface)', borderTop: '1px solid var(--border)', display: 'none', justifyContent: 'space-around', padding: '8px 0 max(8px,env(safe-area-inset-bottom))', zIndex: 100 }}>
+        {NAV_TABS.map(({ id, labelKey, fallback, Icon: NavIcon }) => {
+          const active = tab === id
+          return (
+            <button key={id} onClick={() => navigateTo(id)}
+              aria-current={active ? 'page' : undefined}
+              style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, border: 'none', background: 'none', cursor: 'pointer', padding: '4px 8px', color: active ? 'var(--accent)' : 'var(--text-muted)', minWidth: 52, transition: 'color .15s' }}>
+              <NavIcon size={22} weight={active ? 'fill' : 'regular'} aria-hidden="true" />
+              <span style={{ fontSize: 10, fontWeight: active ? 800 : 500 }}>{t(labelKey) || fallback}</span>
+            </button>
+          )
+        })}
+      </nav>
 
-        {/* Link app completa */}
-        <p style={{ textAlign: 'center', marginTop: 16 }}>
-          <a href="/" style={{ color: 'var(--accent)', fontSize: 13, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-            Ver app completa
-            <IconArrowRight size={13} aria-hidden="true" />
-          </a>
-        </p>
-      </div>
+      {/* ── ONBOARDING ─────────────────────────────────────────────────────── */}
+      <Onboarding onComplete={() => setTab('registro')} />
+
+      {/* ── MAIN ───────────────────────────────────────────────────────────── */}
+      <main style={{ maxWidth: 1200, margin: '0 auto', padding: '24px 16px 80px' }}>
+        {tab === 'dashboard'     && <Dashboard  gastos={gastos} onNavigate={navigateTo} />}
+        {tab === 'registro'      && <ExpenseForm key={editTarget?.id || 'new'} initial={editTarget} onSave={handleSave} onCancel={() => { setEditTarget(null); setTab('listado') }} />}
+        {tab === 'listado'       && <ListView   gastos={gastos} onDelete={handleDelete} onEdit={g => { setEditTarget(g); setTab('registro') }} />}
+        {tab === 'configuracion' && <ConfigPage />}
+      </main>
     </div>
   )
-}
-
-const QS = {
-  wrap:    { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: 'var(--bg)' },
-  card:    { width: '100%', maxWidth: 400, background: 'var(--surface)', borderRadius: 20, padding: 28, boxShadow: '0 12px 40px rgba(0,0,0,.12)' },
-  lbl:    { display: 'flex', alignItems: 'center', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.06em' },
-  inp:    { width: '100%', padding: '12px 16px', border: '1.5px solid var(--border)', borderRadius: 12, fontSize: 16, background: 'var(--bg)', color: 'var(--text-primary)', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' },
-  sel:    { width: '100%', padding: '12px 16px', border: '1.5px solid var(--border)', borderRadius: 12, fontSize: 14, background: 'var(--bg)', color: 'var(--text-primary)', outline: 'none', cursor: 'pointer' },
-  chip:   { padding: '8px 16px', borderRadius: 99, border: '1.5px solid var(--border)', background: 'var(--bg)', color: 'var(--text-secondary)', fontWeight: 700, fontSize: 13, cursor: 'pointer' },
-  btnSave:{ width: '100%', padding: 16, borderRadius: 14, border: 'none', background: 'linear-gradient(135deg,#3b82f6,#2563eb)', color: '#fff', fontWeight: 800, fontSize: 16, cursor: 'pointer', boxShadow: '0 6px 20px rgba(59,130,246,.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 },
 }
