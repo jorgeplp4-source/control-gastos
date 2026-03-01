@@ -99,7 +99,7 @@ function VoicePanel({ state, transcript, resolved, onDismiss }) {
 export default function ExpenseForm({ initial, onSave, onCancel }) {
   const today = new Date().toISOString().split('T')[0]
   const { units }      = useUnits()
-  const { items }      = useItems()
+  const { items } = useItems()
   const { categories } = useCategories()
 
   const blank = { n1:'', n2:'', n3:'', n4:'', cantidad:'', unidad:'unidad', monto:'', fecha:today, observaciones:'' }
@@ -113,7 +113,9 @@ export default function ExpenseForm({ initial, onSave, onCancel }) {
   const [voiceTranscript, setVoiceTranscript] = useState('')
   const [voiceResolved,   setVoiceResolved]   = useState(null)
   const voiceAbort = useRef(false)
+  const itemsRef    = useRef(items)
 
+  itemsRef.current = items
   const setRec = (k, v) => setRecForm(p => ({ ...p, [k]:v }))
   const set    = (k, v) => setForm(p => ({ ...p, [k]:v }))
 
@@ -170,7 +172,7 @@ export default function ExpenseForm({ initial, onSave, onCancel }) {
 
     setVoiceTranscript(transcript)
     const parsed   = parseVoice(transcript)
-    const resolved = resolveVoice(parsed, { items, categories })
+    const resolved = resolveVoice(parsed, { items: itemsRef.current, categories })
 
     if (!resolved) {
       setVoiceState(VOICE_STATES.ERROR)

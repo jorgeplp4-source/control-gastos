@@ -89,7 +89,7 @@ export default function Home() {
       return [record, ...rest].sort((a, b) => b.fecha.localeCompare(a.fecha))
     })
     setEditTarget(null)
-    setTab('listado')
+    if (isEdit) setTab('listado')   // solo volver al listado al editar, no al registrar nuevo
     showToast(isEdit ? 'Gasto actualizado' : _recurrente ? 'Gasto + recurrencia creados' : 'Gasto registrado')
   }
 
