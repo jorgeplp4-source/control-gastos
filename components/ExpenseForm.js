@@ -1,9 +1,9 @@
 'use client'
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { N1_COLORS } from '../lib/constants'
 import { useUnits } from '../lib/useUnits'
 import { useItems } from '../lib/useItems'
-import { useVoiceInput, parseVoice } from '../lib/useVoiceInput'
+import { useVoiceInput, parseVoice, speak } from '../lib/useVoiceInput'
 import ItemSearch from './ItemSearch'
 import {
   IconEditar, IconRegistrar, IconCerrar, IconGuardar,
@@ -18,47 +18,89 @@ const FRECUENCIAS = [
   { val:'custom',    label:'Otro',      Icon: IconConfig     },
 ]
 
-function VoiceResult({ transcript, matches, onSelect, onDismiss }) {
-  if (!transcript) return null
+// Palabras que el usuario puede decir para confirmar
+const CONFIRMAR = ['sí','si','ok','dale','confirmar','guardar','yes','correcto','exacto','bueno']
+const CANCELAR  = ['no','cancelar','stop','parar','error','mal']
+
+function isConfirm(text) { return CONFIRMAR.some(w => text.toLowerCase().includes(w)) }
+function isCancel(text)  { return CANCELAR.some(w => text.toLowerCase().includes(w)) }
+
+// ── Estados del circuito de voz ───────────────────────────────────────────────
+// idle → listening_item → confirming → saving | cancelled | not_found
+const VOICE_STATES = {
+  IDLE:           'idle',
+  LISTENING:      'listening',      // escuchando ítem/cantidad/monto
+  CONFIRMING:     'confirming',     // esperando "sí" o "no"
+  NOT_FOUND:      'not_found',      // ítem no existe
+  SAVING:         'saving',
+  DONE:           'done',
+  ERROR:          'error',
+}
+
+// ── Panel de estado de voz ────────────────────────────────────────────────────
+function VoicePanel({ state, transcript, match, parsed, onDismiss }) {
+  if (state === VOICE_STATES.IDLE) return null
+
+  const msgs = {
+    [VOICE_STATES.LISTENING]:  { icon:'🎤', color:'#3b82f6', label:'Escuchando…',         sub:'Decí: ítem · cantidad · monto' },
+    [VOICE_STATES.CONFIRMING]: { icon:'💬', color:'#f59e0b', label:'Esperando confirmación…', sub:'Decí "sí" para guardar o "no" para cancelar' },
+    [VOICE_STATES.NOT_FOUND]:  { icon:'❓', color:'#ef4444', label:'Ítem no encontrado',   sub:'El ítem no existe en tu catálogo' },
+    [VOICE_STATES.SAVING]:     { icon:'💾', color:'#22c55e', label:'Guardando…',           sub:'' },
+    [VOICE_STATES.DONE]:       { icon:'✅', color:'#22c55e', label:'¡Guardado!',            sub:'' },
+    [VOICE_STATES.ERROR]:      { icon:'⚠️', color:'#ef4444', label:'Error de voz',         sub:'Intentá de nuevo' },
+  }
+  const m = msgs[state] || msgs[VOICE_STATES.ERROR]
+
   return (
-    <div style={{ marginBottom:12, padding:'12px 16px', background:'var(--surface)', border:'1.5px solid var(--accent)', borderRadius:12, fontSize:13, animation:'micAppear .2s ease' }}>
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
-        <span style={{ fontSize:11, fontWeight:700, color:'var(--accent)', textTransform:'uppercase', letterSpacing:'.06em' }}>
-          🎤 Escuché: "{transcript}"
-        </span>
-        <button onClick={onDismiss} style={{ border:'none', background:'none', cursor:'pointer', color:'var(--text-muted)', padding:2 }}>
-          <IconCerrar size={12}/>
-        </button>
-      </div>
-      {matches.length === 0 ? (
-        <p style={{ margin:0, color:'#ef4444', fontSize:12, fontWeight:600 }}>
-          No encontré ningún ítem guardado con ese nombre. Buscalo manualmente abajo.
-        </p>
-      ) : (
-        <>
-          <p style={{ margin:'0 0 8px', color:'var(--text-muted)', fontSize:11 }}>Seleccioná el ítem:</p>
-          <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
-            {matches.map(it => (
-              <button key={it.id} onClick={() => onSelect(it)}
-                style={{ textAlign:'left', padding:'8px 12px', border:'1px solid var(--border)', borderRadius:8, background:'var(--surface2)', cursor:'pointer', display:'flex', alignItems:'center', gap:8 }}
-                onMouseEnter={e=>e.currentTarget.style.background='var(--accent-light,#eff6ff)'}
-                onMouseLeave={e=>e.currentTarget.style.background='var(--surface2)'}>
-                <span style={{ fontWeight:700, fontSize:13, flex:1 }}>{it.nombre}</span>
-                <span style={{ fontSize:10, color:'var(--text-muted)' }}>{[it.n1,it.n2,it.n3].filter(Boolean).join(' › ')}</span>
-                {it.unidad_default && <span style={{ fontSize:10, color:'var(--accent)', fontWeight:600, background:'var(--accent-light,#eff6ff)', padding:'1px 6px', borderRadius:99 }}>{it.unidad_default}</span>}
-              </button>
-            ))}
+    <div style={{ marginBottom:14, padding:'14px 16px', background:'var(--surface)', border:`2px solid ${m.color}`, borderRadius:14, animation:'micAppear .2s ease' }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+          <span style={{ fontSize:20 }}>{m.icon}</span>
+          <div>
+            <div style={{ fontSize:13, fontWeight:800, color:m.color }}>{m.label}</div>
+            {m.sub && <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:1 }}>{m.sub}</div>}
           </div>
-        </>
+        </div>
+        {[VOICE_STATES.NOT_FOUND, VOICE_STATES.ERROR, VOICE_STATES.DONE].includes(state) && (
+          <button onClick={onDismiss} style={{ border:'none', background:'none', cursor:'pointer', color:'var(--text-muted)', padding:2 }}>
+            <IconCerrar size={13}/>
+          </button>
+        )}
+      </div>
+
+      {/* Lo que escuchó */}
+      {transcript && state !== VOICE_STATES.IDLE && (
+        <div style={{ marginTop:10, padding:'8px 10px', background:'var(--surface2)', borderRadius:8, fontSize:12 }}>
+          <span style={{ color:'var(--text-muted)' }}>Escuché: </span>
+          <span style={{ fontWeight:700, fontStyle:'italic' }}>"{transcript}"</span>
+        </div>
+      )}
+
+      {/* Resumen de lo que va a guardar */}
+      {match && parsed && state === VOICE_STATES.CONFIRMING && (
+        <div style={{ marginTop:10, display:'flex', flexWrap:'wrap', gap:6 }}>
+          {[
+            { label:'Ítem',     val: match.nombre },
+            { label:'Cantidad', val: parsed.cantidad },
+            { label:'Monto',    val: `$${parsed.monto}` },
+            { label:'Unidad',   val: match.unidad_default },
+          ].filter(x=>x.val).map(x => (
+            <div key={x.label} style={{ padding:'4px 10px', borderRadius:99, background:`${m.color}18`, border:`1px solid ${m.color}44` }}>
+              <span style={{ fontSize:10, color:'var(--text-muted)' }}>{x.label}: </span>
+              <span style={{ fontSize:12, fontWeight:700, color:'var(--text-primary)' }}>{x.val}</span>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   )
 }
 
+// ── Formulario principal ──────────────────────────────────────────────────────
 export default function ExpenseForm({ initial, onSave, onCancel }) {
   const today = new Date().toISOString().split('T')[0]
   const { units } = useUnits()
-  const { items }  = useItems()
+  const { items } = useItems()
 
   const blank = { n1:'', n2:'', n3:'', n4:'', cantidad:'', unidad:'unidad', monto:'', fecha:today, observaciones:'' }
   const [form,         setForm]         = useState(initial ? { ...initial } : blank)
@@ -67,9 +109,12 @@ export default function ExpenseForm({ initial, onSave, onCancel }) {
   const [hacerRec,     setHacerRec]     = useState(false)
   const [recForm,      setRecForm]      = useState({ frecuencia:'mensual', intervalo_dias:30, fecha_inicio:today, fecha_fin:'', activo:true })
 
+  // Estado del circuito de voz
+  const [voiceState,      setVoiceState]      = useState(VOICE_STATES.IDLE)
   const [voiceTranscript, setVoiceTranscript] = useState('')
-  const [voiceMatches,    setVoiceMatches]    = useState([])
-  const [voiceParsed,     setVoiceParsed]     = useState(null)
+  const [voiceMatch,      setVoiceMatch]      = useState(null)   // ítem encontrado
+  const [voiceParsed,     setVoiceParsed]     = useState(null)   // { cantidad, monto }
+  const voiceAbort = useRef(false)
 
   const setRec = (k, v) => setRecForm(p => ({ ...p, [k]:v }))
   const set    = (k, v) => setForm(p => ({ ...p, [k]:v }))
@@ -80,23 +125,61 @@ export default function ExpenseForm({ initial, onSave, onCancel }) {
     else setForm(p => ({ ...p, n4:'' }))
   }, [])
 
-  const handleUnitFromItem = useCallback((unidad) => { if (unidad) set('unidad', unidad) }, [])
+  const handleUnitFromItem = useCallback((u) => { if (u) set('unidad', u) }, [])
 
-  const handleVoiceSelect = useCallback((item) => {
-    handleItemChange(item)
-    if (item.unidad_default) set('unidad', item.unidad_default)
-    if (voiceParsed?.cantidad) set('cantidad', voiceParsed.cantidad)
-    if (voiceParsed?.monto)    set('monto',    voiceParsed.monto)
-    setVoiceTranscript(''); setVoiceMatches([]); setVoiceParsed(null)
-  }, [voiceParsed, handleItemChange])
+  const { listen, supported, error: srError, setError: setSrError } = useVoiceInput({ lang:'es-AR' })
 
-  const handleVoiceResult = useCallback((text) => {
-    const parsed = parseVoice(text)
-    setVoiceTranscript(text)
-    setVoiceParsed(parsed)
-    if (!parsed.itemQuery) { setVoiceMatches([]); return }
-    const q = parsed.itemQuery.toLowerCase()
-    const found = items
+  // ── Aplicar item + datos al form y guardar ────────────────────────────────
+  const applyAndSave = useCallback(async (item, parsed) => {
+    setVoiceState(VOICE_STATES.SAVING)
+    const gasto = {
+      n1: item.n1 || '', n2: item.n2 || '', n3: item.n3 || '',
+      n4: item.nombre,
+      cantidad: parseFloat(parsed.cantidad) || 1,
+      unidad:   item.unidad_default || 'unidad',
+      monto:    parseFloat(parsed.monto) || 0,
+      fecha:    today,
+      observaciones: '',
+    }
+    // Actualizar form visualmente
+    setForm(gasto)
+    setSelectedItem(item)
+    await onSave(gasto)
+    setVoiceState(VOICE_STATES.DONE)
+    setTimeout(() => {
+      setVoiceState(VOICE_STATES.IDLE)
+      setVoiceTranscript(''); setVoiceMatch(null); setVoiceParsed(null)
+    }, 1500)
+  }, [today, onSave])
+
+  // ── Circuito principal de voz ─────────────────────────────────────────────
+  const runVoiceFlow = useCallback(async () => {
+    if (!supported) { setSrError('Tu navegador no soporta voz. Usá Chrome o Edge.'); return }
+    voiceAbort.current = false
+
+    // FASE 1: escuchar ítem/cantidad/monto
+    setVoiceState(VOICE_STATES.LISTENING)
+    setVoiceTranscript(''); setVoiceMatch(null); setVoiceParsed(null)
+
+    let transcript = ''
+    try {
+      transcript = await listen(t => setVoiceTranscript(t))
+    } catch {
+      setVoiceState(VOICE_STATES.ERROR); return
+    }
+    if (voiceAbort.current) { setVoiceState(VOICE_STATES.IDLE); return }
+
+    setVoiceTranscript(transcript)
+    const parsed = parseVoice(transcript)
+
+    // Buscar mejor coincidencia en ítems
+    const q = (parsed.itemQuery || '').toLowerCase().trim()
+    if (!q) {
+      await speak('No entendí el nombre del ítem. Intentá de nuevo.')
+      setVoiceState(VOICE_STATES.IDLE); return
+    }
+
+    const candidates = items
       .filter(it => it.nombre.toLowerCase().includes(q))
       .sort((a, b) => {
         const aS = a.nombre.toLowerCase().startsWith(q)
@@ -104,18 +187,55 @@ export default function ExpenseForm({ initial, onSave, onCancel }) {
         if (aS && !bS) return -1; if (!aS && bS) return 1
         return a.nombre.localeCompare(b.nombre, 'es')
       })
-      .slice(0, 6)
-    setVoiceMatches(found)
-  }, [items])
 
-  const { listening, supported, error: srError, start: startVoice, stop: stopVoice } = useVoiceInput({
-    onResult: handleVoiceResult, lang: 'es-AR',
-  })
+    // ── Ítem no encontrado ────────────────────────────────────────────────
+    if (candidates.length === 0) {
+      setVoiceState(VOICE_STATES.NOT_FOUND)
+      await speak(`Ítem no encontrado: ${q}. Verificá que esté cargado en tu catálogo.`)
+      return
+    }
+
+    const match = candidates[0]
+    setVoiceMatch(match)
+    setVoiceParsed(parsed)
+
+    // ── Confirmar con voz ─────────────────────────────────────────────────
+    setVoiceState(VOICE_STATES.CONFIRMING)
+
+    const resumen = `${match.nombre}, ${parsed.cantidad || 1} ${match.unidad_default || 'unidad'}, ${parsed.monto ? parsed.monto + ' pesos' : 'sin monto'}. ¿Confirmás?`
+    await speak(resumen)
+    if (voiceAbort.current) { setVoiceState(VOICE_STATES.IDLE); return }
+
+    // FASE 2: escuchar confirmación
+    let confirmText = ''
+    try {
+      confirmText = await listen(t => setVoiceTranscript(t))
+    } catch {
+      setVoiceState(VOICE_STATES.ERROR); return
+    }
+    if (voiceAbort.current) { setVoiceState(VOICE_STATES.IDLE); return }
+
+    setVoiceTranscript(confirmText)
+
+    if (isConfirm(confirmText)) {
+      await applyAndSave(match, parsed)
+    } else {
+      await speak('Cancelado.')
+      setVoiceState(VOICE_STATES.IDLE)
+      setVoiceTranscript(''); setVoiceMatch(null); setVoiceParsed(null)
+    }
+  }, [supported, listen, items, applyAndSave])
 
   const handleMicClick = () => {
-    if (listening) { stopVoice(); return }
-    setVoiceTranscript(''); setVoiceMatches([]); setVoiceParsed(null)
-    startVoice()
+    if (voiceState !== VOICE_STATES.IDLE) {
+      // Abortar circuito activo
+      voiceAbort.current = true
+      window.speechSynthesis?.cancel()
+      setVoiceState(VOICE_STATES.IDLE)
+      setVoiceTranscript(''); setVoiceMatch(null); setVoiceParsed(null)
+      return
+    }
+    runVoiceFlow()
   }
 
   const valid = form.n1 && form.n4 && form.cantidad && form.monto && form.fecha
@@ -130,6 +250,12 @@ export default function ExpenseForm({ initial, onSave, onCancel }) {
   }
 
   const activeColor = (N1_COLORS[form.n1]||{}).bg || '#3b82f6'
+  const micActive = voiceState !== VOICE_STATES.IDLE
+  const micColor  = voiceState === VOICE_STATES.CONFIRMING ? '#f59e0b'
+                  : voiceState === VOICE_STATES.NOT_FOUND  ? '#ef4444'
+                  : voiceState === VOICE_STATES.DONE       ? '#22c55e'
+                  : '#3b82f6'
+
   const inp = { padding:'10px 14px', border:'1.5px solid var(--border)', borderRadius:10, fontSize:14, background:'var(--surface)', outline:'none', width:'100%', color:'var(--text-primary)', fontFamily:'inherit' }
   const lbl = { display:'block', fontSize:11, fontWeight:700, color:'var(--text-muted)', marginBottom:6, textTransform:'uppercase', letterSpacing:'0.06em' }
   const sel = { ...inp, cursor:'pointer', appearance:'none', paddingRight:28, backgroundImage:"url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2394a3b8' d='M6 8L1 3h10z'/%3E%3C/svg%3E\")", backgroundRepeat:'no-repeat', backgroundPosition:'right 10px center' }
@@ -137,8 +263,8 @@ export default function ExpenseForm({ initial, onSave, onCancel }) {
   return (
     <div style={{ maxWidth:720, margin:'0 auto' }}>
       <style>{`
-        @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
-        @keyframes micPulse { 0%,100%{box-shadow:0 0 0 4px #ef444430} 50%{box-shadow:0 0 0 12px #ef444410} }
+        @keyframes spin      { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+        @keyframes micPulse  { 0%,100%{box-shadow:0 0 0 4px ${micColor}30} 50%{box-shadow:0 0 0 14px ${micColor}10} }
         @keyframes micAppear { from{opacity:0;transform:translateY(-4px)} to{opacity:1;transform:translateY(0)} }
       `}</style>
 
@@ -159,39 +285,47 @@ export default function ExpenseForm({ initial, onSave, onCancel }) {
           {/* ── Bloque ítem + voz ── */}
           <div style={{ background:'var(--surface2)', borderRadius:14, padding:20, marginBottom:22, border:'1px solid var(--border)' }}>
 
-            {/* Header: label + estado mic + botón */}
-            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
+            {/* Header */}
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
               <div>
                 <span style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'.06em' }}>Ítem</span>
-                {supported && !listening && !voiceTranscript && (
+                {supported && !micActive && (
                   <span style={{ marginLeft:8, fontSize:11, color:'var(--text-muted)', fontStyle:'italic' }}>
-                    o hablá: <strong style={{ fontStyle:'normal' }}>ítem · cantidad · monto</strong>
+                    o usá el 🎤 — decí: <strong style={{ fontStyle:'normal' }}>ítem · cantidad · monto</strong>
                   </span>
                 )}
               </div>
-              <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                {listening && <span style={{ fontSize:11, color:'#ef4444', fontWeight:700, animation:'micAppear .2s ease' }}>● Escuchando…</span>}
-                {supported && (
-                  <button onClick={handleMicClick} title={listening ? 'Detener' : 'Cargar por voz'}
-                    style={{ width:40, height:40, borderRadius:'50%', border:'none', cursor:'pointer', background:listening?'#ef4444':'var(--accent)', color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', boxShadow:listening?'none':'0 2px 8px var(--accent)44', animation:listening?'micPulse 1.2s ease-in-out infinite':'none', transition:'background .2s, box-shadow .2s', flexShrink:0 }}>
-                    {listening ? <IconMicrofonoOff size={17}/> : <IconMicrofono size={17}/>}
-                  </button>
-                )}
-              </div>
+
+              {/* Botón micrófono */}
+              {supported && (
+                <button onClick={handleMicClick}
+                  title={micActive ? 'Cancelar voz' : 'Cargar por voz'}
+                  style={{
+                    width:44, height:44, borderRadius:'50%', border:'none', cursor:'pointer', flexShrink:0,
+                    background: micActive ? micColor : 'var(--accent)',
+                    color:'#fff', display:'flex', alignItems:'center', justifyContent:'center',
+                    boxShadow: micActive ? 'none' : '0 2px 10px var(--accent)44',
+                    animation: [VOICE_STATES.LISTENING, VOICE_STATES.CONFIRMING].includes(voiceState) ? 'micPulse 1.4s ease-in-out infinite' : 'none',
+                    transition:'background .25s, box-shadow .25s',
+                  }}>
+                  {micActive ? <IconMicrofonoOff size={18}/> : <IconMicrofono size={18}/>}
+                </button>
+              )}
             </div>
 
-            {/* Error de Speech API */}
+            {/* Error API */}
             {srError && <div style={{ marginBottom:10, padding:'7px 12px', background:'#fee2e2', borderRadius:8, fontSize:12, color:'#dc2626', fontWeight:600 }}>⚠ {srError}</div>}
 
-            {/* Resultado de voz */}
-            <VoiceResult
+            {/* Panel de estado de voz */}
+            <VoicePanel
+              state={voiceState}
               transcript={voiceTranscript}
-              matches={voiceMatches}
-              onSelect={handleVoiceSelect}
-              onDismiss={() => { setVoiceTranscript(''); setVoiceMatches([]); setVoiceParsed(null) }}
+              match={voiceMatch}
+              parsed={voiceParsed}
+              onDismiss={() => { setVoiceState(VOICE_STATES.IDLE); setVoiceTranscript(''); setVoiceMatch(null); setVoiceParsed(null) }}
             />
 
-            {/* Búsqueda de ítem */}
+            {/* Búsqueda manual */}
             <ItemSearch value={selectedItem} onChange={handleItemChange} onUnitChange={handleUnitFromItem}/>
 
             {form.n1 && !selectedItem && (
@@ -209,7 +343,7 @@ export default function ExpenseForm({ initial, onSave, onCancel }) {
             )}
           </div>
 
-          {/* Campos numéricos — highlight si vienen de voz */}
+          {/* Campos numéricos */}
           <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(148px,1fr))', gap:16 }}>
             <div>
               <label style={lbl}>Cantidad</label>
@@ -306,6 +440,7 @@ export default function ExpenseForm({ initial, onSave, onCancel }) {
                 : <><IconExito size={15}/> Registrar Gasto</>}
             </button>
           </div>
+
         </div>
       </div>
     </div>
