@@ -22,13 +22,20 @@ export async function POST(request) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await request.json()
+  // Solo campos conocidos de la tabla
+  const { fuente, monto, fecha, tipo, periodo, notas } = body
+  const record = { fuente, monto, fecha, tipo: tipo||'fijo', periodo: periodo||'mensual', notas: notas||'' }
+
   const { data, error } = await supabase
     .from('ingresos')
-    .insert([{ ...body, user_id: user.id }])
+    .insert([{ ...record, user_id: user.id }])
     .select()
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('ingresos POST error:', error)
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
   return NextResponse.json(data, { status: 201 })
 }
 
@@ -38,16 +45,21 @@ export async function PUT(request) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await request.json()
-  const { id, ...fields } = body
+  const { id, fuente, monto, fecha, tipo, periodo, notas } = body
+  const record = { fuente, monto, fecha, tipo: tipo||'fijo', periodo: periodo||'mensual', notas: notas||'' }
+
   const { data, error } = await supabase
     .from('ingresos')
-    .update(fields)
+    .update(record)
     .eq('id', id)
     .eq('user_id', user.id)
     .select()
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('ingresos PUT error:', error)
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
   return NextResponse.json(data)
 }
 

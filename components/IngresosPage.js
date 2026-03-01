@@ -156,10 +156,15 @@ export default function IngresosPage() {
     const res = await fetch('/api/ingresos', {
       method: isEdit ? 'PUT' : 'POST',
       headers: { 'Content-Type':'application/json' },
-      body: JSON.stringify(isEdit ? { ...form, id: editTarget.id } : form),
+      body: JSON.stringify((() => {
+        const { fuente, monto, fecha, tipo, periodo, notas } = form
+        const clean = { fuente, monto, fecha, tipo, periodo, notas: notas||'' }
+        return isEdit ? { ...clean, id: editTarget.id } : clean
+      })()),
     })
-    if (!res.ok) { alert('Error al guardar. Intentá de nuevo.'); return }
-    const saved = await res.json()
+    const resBody = await res.json()
+    if (!res.ok) { alert('Error: ' + (resBody.error || res.status)); return }
+    const saved = resBody
     // Actualizar lista localmente sin esperar refetch (UX inmediata)
     setShowForm(false); setEditTarget(null)
     await refetch()
