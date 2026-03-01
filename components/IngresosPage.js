@@ -153,19 +153,22 @@ export default function IngresosPage() {
 
   const handleSave = async (form) => {
     const isEdit = !!editTarget
-    await fetch('/api/ingresos', {
+    const res = await fetch('/api/ingresos', {
       method: isEdit ? 'PUT' : 'POST',
       headers: { 'Content-Type':'application/json' },
       body: JSON.stringify(isEdit ? { ...form, id: editTarget.id } : form),
     })
-    refetch()
+    if (!res.ok) { alert('Error al guardar. Intentá de nuevo.'); return }
+    const saved = await res.json()
+    // Actualizar lista localmente sin esperar refetch (UX inmediata)
     setShowForm(false); setEditTarget(null)
+    await refetch()
   }
 
   const handleDelete = async (id) => {
     if (!confirm('¿Eliminar este ingreso?')) return
     await fetch(`/api/ingresos?id=${id}`, { method:'DELETE' })
-    refetch()
+    await refetch()
   }
 
   const handleEdit = (ing) => { setEditTarget(ing); setShowForm(true) }
