@@ -43,7 +43,7 @@ function VoicePanel({ state, transcript, match, parsed, onDismiss }) {
 
   const msgs = {
     [VOICE_STATES.LISTENING]:  { icon:'🎤', color:'#3b82f6', label:'Escuchando…',         sub:'Decí: ítem · cantidad · monto' },
-    [VOICE_STATES.CONFIRMING]: { icon:'💬', color:'#f59e0b', label:'Esperando confirmación…', sub:'Decí "sí" para guardar o "no" para cancelar' },
+    [VOICE_STATES.CONFIRMING]: { icon:'💬', color:'#f59e0b', label:'Esperando confirmación…', sub:'🎤 Micrófono activo — decí "sí" o "no"' },
     [VOICE_STATES.NOT_FOUND]:  { icon:'❓', color:'#ef4444', label:'Ítem no encontrado',   sub:'El ítem no existe en tu catálogo' },
     [VOICE_STATES.SAVING]:     { icon:'💾', color:'#22c55e', label:'Guardando…',           sub:'' },
     [VOICE_STATES.DONE]:       { icon:'✅', color:'#22c55e', label:'¡Guardado!',            sub:'' },
@@ -163,7 +163,7 @@ export default function ExpenseForm({ initial, onSave, onCancel }) {
 
     let transcript = ''
     try {
-      transcript = await listen(t => setVoiceTranscript(t))
+      transcript = await listen(t => setVoiceTranscript(t), { retries: 1 })
     } catch {
       setVoiceState(VOICE_STATES.ERROR); return
     }
@@ -191,7 +191,7 @@ export default function ExpenseForm({ initial, onSave, onCancel }) {
     // ── Ítem no encontrado ────────────────────────────────────────────────
     if (candidates.length === 0) {
       setVoiceState(VOICE_STATES.NOT_FOUND)
-      await speak(`Ítem no encontrado: ${q}. Verificá que esté cargado en tu catálogo.`)
+      await speak(`Ítem no encontrado. Verificá que esté cargado en tu catálogo.`)
       return
     }
 
@@ -202,16 +202,22 @@ export default function ExpenseForm({ initial, onSave, onCancel }) {
     // ── Confirmar con voz ─────────────────────────────────────────────────
     setVoiceState(VOICE_STATES.CONFIRMING)
 
-    const resumen = `${match.nombre}, ${parsed.cantidad || 1} ${match.unidad_default || 'unidad'}, ${parsed.monto ? parsed.monto + ' pesos' : 'sin monto'}. ¿Confirmás?`
-    await speak(resumen)
+    // Resumen corto para que el TTS no dure mucho antes de escuchar
+    const montoStr = parsed.monto ? parsed.monto + ' pesos' : 'sin monto'
+    const resumen  = `${match.nombre}, ${montoStr}. ¿Confirmás?`
+    await speak(resumen, { delay: 800 })   // delay generoso post-TTS
     if (voiceAbort.current) { setVoiceState(VOICE_STATES.IDLE); return }
 
-    // FASE 2: escuchar confirmación
+    // FASE 2: escuchar confirmación — sin retries, timeout implícito de SR
     let confirmText = ''
     try {
-      confirmText = await listen(t => setVoiceTranscript(t))
-    } catch {
-      setVoiceState(VOICE_STATES.ERROR); return
+      confirmText = await listen(t => setVoiceTranscript(t), { retries: 0 })
+    } catch(e) {
+      // no-speech en confirmación = cancelar (el usuario no dijo nada)
+      await speak('Tiempo agotado. Cancelado.')
+      setVoiceState(VOICE_STATES.IDLE)
+      setVoiceTranscript(''); setVoiceMatch(null); setVoiceParsed(null)
+      return
     }
     if (voiceAbort.current) { setVoiceState(VOICE_STATES.IDLE); return }
 
