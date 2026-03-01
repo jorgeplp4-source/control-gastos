@@ -135,7 +135,7 @@ export default function ExpenseForm({ initial, onSave, onCancel }) {
       n3: resolved.n3 || '',
       n4: resolved.n4 || 'Gasto',
       cantidad:  parseFloat(resolved.cantidad) || 1,
-      unidad:    'unidad',
+      unidad:    resolved.unidad || 'unidad',
       monto:     parseFloat(resolved.monto)    || 0,
       fecha:     today,
       observaciones: '',
