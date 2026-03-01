@@ -22,6 +22,7 @@ const FRECUENCIAS = [
 const VOICE_STATES = {
   IDLE:      'idle',
   LISTENING: 'listening',
+  NOT_FOUND: 'not_found',
   SAVING:    'saving',
   DONE:      'done',
   ERROR:     'error',
@@ -40,8 +41,9 @@ function VoicePanel({ state, transcript, resolved, onDismiss }) {
   if (state === VOICE_STATES.IDLE) return null
 
   const cfg = {
-    [VOICE_STATES.LISTENING]: { icon:'🎤', color:'#3b82f6', label:'Escuchando…',  sub:'Decí: nombre · cantidad · monto' },
-    [VOICE_STATES.SAVING]:    { icon:'💾', color:'#22c55e', label:'Guardando…',    sub:'' },
+    [VOICE_STATES.LISTENING]:  { icon:'🎤', color:'#3b82f6', label:'Escuchando…',      sub:'Decí: nombre · cantidad · monto' },
+    [VOICE_STATES.NOT_FOUND]:  { icon:'❓', color:'#ef4444', label:'No encontrado',    sub:'El ítem o categoría no existe en tu catálogo' },
+    [VOICE_STATES.SAVING]:     { icon:'💾', color:'#22c55e', label:'Guardando…',        sub:'' },
     [VOICE_STATES.DONE]:      { icon:'✅', color:'#22c55e', label:'¡Registrado!',  sub:'' },
     [VOICE_STATES.ERROR]:     { icon:'⚠️', color:'#ef4444', label:'No entendí',    sub:'Intentá de nuevo' },
   }[state] || { icon:'🎤', color:'#3b82f6', label:'…', sub:'' }
@@ -58,7 +60,7 @@ function VoicePanel({ state, transcript, resolved, onDismiss }) {
             {cfg.sub && <div style={{ fontSize:11, color:'var(--text-muted)' }}>{cfg.sub}</div>}
           </div>
         </div>
-        {[VOICE_STATES.DONE, VOICE_STATES.ERROR].includes(state) && (
+        {[VOICE_STATES.DONE, VOICE_STATES.ERROR, VOICE_STATES.NOT_FOUND].includes(state) && (
           <button onClick={onDismiss} style={{ border:'none', background:'none', cursor:'pointer', color:'var(--text-muted)', padding:2 }}>
             <IconCerrar size={12}/>
           </button>
@@ -175,8 +177,9 @@ export default function ExpenseForm({ initial, onSave, onCancel }) {
     const resolved = resolveVoice(parsed, { items: itemsRef.current, categories })
 
     if (!resolved) {
-      setVoiceState(VOICE_STATES.ERROR)
-      setTimeout(() => setVoiceState(VOICE_STATES.IDLE), 2500)
+      setVoiceState(VOICE_STATES.NOT_FOUND)
+      await speak('No encontrado.')
+      setTimeout(() => { setVoiceState(VOICE_STATES.IDLE); setVoiceTranscript('') }, 3000)
       return
     }
 
