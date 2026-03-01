@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { useApp } from '../context/AppContext'
 import {
   IconDashboard, IconRegistrar, IconListado, IconConfig,
-  IconCerrar, IconSpinner, IconSalir, IconBilletera, IconCheck,
+  IconCerrar, IconSpinner, IconSalir, IconBilletera, IconCheck, IconDinero,
 } from '../lib/icons'
 
 function Spinner({ label = 'Cargando…' }) {
@@ -22,6 +22,7 @@ function Spinner({ label = 'Cargando…' }) {
 const Dashboard        = dynamic(() => import('../components/Dashboard'),       { ssr: false, loading: () => <Spinner label="Cargando dashboard…"     /> })
 const ExpenseForm      = dynamic(() => import('../components/ExpenseForm'),      { ssr: false, loading: () => <Spinner label="Cargando formulario…"    /> })
 const ListView         = dynamic(() => import('../components/ListView'),         { ssr: false, loading: () => <Spinner label="Cargando listado…"       /> })
+const IngresosPage     = dynamic(() => import('../components/IngresosPage'),     { ssr: false, loading: () => <Spinner label="Cargando ingresos…"      /> })
 const ConfigPage       = dynamic(() => import('../components/ConfigPage'),       { ssr: false, loading: () => <Spinner label="Cargando configuración…" /> })
 const NotificationsBell = dynamic(() => import('../components/NotificationsBell'), { ssr: false })
 const Onboarding       = dynamic(() => import('../components/Onboarding'),      { ssr: false })
@@ -31,6 +32,7 @@ const NAV_TABS = [
   { id: 'dashboard',     labelKey: 'nav.dashboard',    fallback: 'Dashboard', Icon: IconDashboard },
   { id: 'registro',      labelKey: 'nav.registro',     fallback: 'Registrar', Icon: IconRegistrar },
   { id: 'listado',       labelKey: 'nav.listado',      fallback: 'Listado',   Icon: IconListado   },
+  { id: 'ingresos',      labelKey: 'nav.ingresos',     fallback: 'Ingresos',  Icon: IconDinero    },
   { id: 'configuracion', labelKey: 'nav.configuracion', fallback: 'Config',   Icon: IconConfig    },
 ]
 
@@ -197,6 +199,7 @@ export default function Home() {
         {tab === 'dashboard'     && <Dashboard  gastos={gastos} onNavigate={navigateTo} />}
         {tab === 'registro'      && <ExpenseForm key={editTarget?.id || 'new'} initial={editTarget} onSave={handleSave} onCancel={() => { setEditTarget(null); setTab('listado') }} />}
         {tab === 'listado'       && <ListView   gastos={gastos} onDelete={handleDelete} onEdit={g => { setEditTarget(g); setTab('registro') }} />}
+        {tab === 'ingresos'      && <IngresosPage />}
         {tab === 'configuracion' && <ConfigPage />}
       </main>
     </div>

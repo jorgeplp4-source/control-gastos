@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react'
 import { N1_COLORS, fmt, uniq, PERIODOS, getPeriodo, getPeriodoAnterior } from '../lib/constants'
 import { useChart, PALETTE, baseOptions } from '../lib/useChart'
 import { useApp } from '../context/AppContext'
+import { useIngresos } from '../lib/useIngresos'
 import {
   IconDinero, IconCalendario, IconTrofeo, IconEtiquetas,
   IconRegistrar, IconRecurrentes, IconTip, IconCaretDown,
@@ -140,6 +141,8 @@ export default function Dashboard({ gastos: todosLosGastos, onNavigate }) {
   const { fmtMoney } = useApp()
   const money = v => fmtMoney ? fmtMoney(v) : fmt(v)
 
+  const { ingresos: todosLosIngresos } = useIngresos()
+
   const [periodo, setPeriodo] = useState('mes')
   const [from, setFrom] = useState(() => getPeriodo('mes').from)
   const [to,   setTo]   = useState(() => getPeriodo('mes').to)
@@ -159,6 +162,25 @@ export default function Dashboard({ gastos: todosLosGastos, onNavigate }) {
 
   const total    = gastos.reduce((s, g) => s + (g.monto || 0), 0)
   const totalAnt = gastosAnt.reduce((s, g) => s + (g.monto || 0), 0)
+
+  // ── Ingresos del período ────────────────────────────────────────────────────
+  const ingresosDelPeriodo = useMemo(() =>
+    todosLosIngresos.filter(i => (!from || i.fecha >= from) && (!to || i.fecha <= to)),
+    [todosLosIngresos, from, to]
+  )
+  const totalIngresos  = ingresosDelPeriodo.reduce((s,i) => s + (i.monto||0), 0)
+  const saldoDisp      = totalIngresos - total
+  const pctGastado     = totalIngresos > 0 ? Math.round(total / totalIngresos * 100) : null
+
+  // Gastos hormiga: gastos de monto pequeño (< 1% del total o < $2000), frecuentes
+  const HORMIGA_MAX = Math.max(2000, total * 0.01)
+  const gastosHormiga = useMemo(() => {
+    const pequeños = gastos.filter(g => g.monto > 0 && g.monto <= HORMIGA_MAX)
+    const totalHormiga = pequeños.reduce((s,g) => s + g.monto, 0)
+    return { count: pequeños.length, total: totalHormiga,
+      pct: total > 0 ? Math.round(totalHormiga/total*100) : 0 }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gastos, total])
 
   const dias = useMemo(() => {
     if (!from || !to) return uniq(gastos.map(g => g.fecha)).length || 1
@@ -299,6 +321,65 @@ export default function Dashboard({ gastos: todosLosGastos, onNavigate }) {
           </div>
         </div>
       </div>
+
+      {/* ── Panel Ingresos vs Gastos ── */}
+      {totalIngresos > 0 && (
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))', gap:14 }}>
+          {/* Ingresos */}
+          <div style={{ ...card, borderTop:'3px solid #22c55e', padding:'18px 20px' }}>
+            <div style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:6 }}>Ingresos</div>
+            <div style={{ fontSize:22, fontWeight:800, color:'#22c55e' }}>{money(totalIngresos)}</div>
+            <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:3 }}>{periodoLabel}</div>
+          </div>
+
+          {/* % Gastado */}
+          <div style={{ ...card, borderTop:`3px solid ${pctGastado>90?'#ef4444':pctGastado>70?'#f59e0b':'#22c55e'}`, padding:'18px 20px' }}>
+            <div style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:6 }}>% Gastado</div>
+            <div style={{ fontSize:22, fontWeight:800, color:pctGastado>90?'#ef4444':pctGastado>70?'#f59e0b':'#22c55e' }}>
+              {pctGastado}%
+            </div>
+            <div style={{ marginTop:6, height:5, borderRadius:3, background:'var(--border)', overflow:'hidden' }}>
+              <div style={{ height:'100%', width:`${Math.min(pctGastado,100)}%`, borderRadius:3, transition:'width .5s',
+                background:pctGastado>90?'#ef4444':pctGastado>70?'#f59e0b':'#22c55e' }}/>
+            </div>
+          </div>
+
+          {/* Saldo disponible */}
+          <div style={{ ...card, borderTop:`3px solid ${saldoDisp>=0?'#3b82f6':'#ef4444'}`, padding:'18px 20px' }}>
+            <div style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:6 }}>Saldo disponible</div>
+            <div style={{ fontSize:22, fontWeight:800, color:saldoDisp>=0?'#3b82f6':'#ef4444' }}>
+              {saldoDisp>=0?'+':''}{money(saldoDisp)}
+            </div>
+            <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:3 }}>
+              {saldoDisp>=0?'Superávit':'Déficit'} del período
+            </div>
+          </div>
+
+          {/* Gastos hormiga */}
+          {gastosHormiga.count > 0 && (
+            <div style={{ ...card, borderTop:'3px solid #8b5cf6', padding:'18px 20px' }}>
+              <div style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:6 }}>Gastos hormiga</div>
+              <div style={{ fontSize:22, fontWeight:800, color:'#8b5cf6' }}>{money(gastosHormiga.total)}</div>
+              <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:3 }}>
+                {gastosHormiga.count} gastos pequeños · {gastosHormiga.pct}% del total
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Sin ingresos cargados — CTA ── */}
+      {totalIngresos === 0 && gastos.length > 0 && (
+        <div style={{ ...card, background:'#eff6ff', border:'1px solid #bfdbfe', padding:'14px 20px',
+          display:'flex', alignItems:'center', gap:14, cursor:'pointer' }}
+          onClick={() => onNavigate?.('ingresos')}>
+          <span style={{ fontSize:24 }}>💡</span>
+          <div>
+            <div style={{ fontSize:13, fontWeight:700, color:'#1e40af' }}>Registrá tus ingresos para ver el % gastado y el saldo disponible</div>
+            <div style={{ fontSize:12, color:'#3b82f6', marginTop:2 }}>Ir a Ingresos →</div>
+          </div>
+        </div>
+      )}
 
       {/* Sin datos en período */}
       {gastos.length === 0 ? (
