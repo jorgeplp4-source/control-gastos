@@ -18,23 +18,15 @@ const FRECUENCIAS = [
   { val:'custom',    label:'Otro',      Icon: IconConfig     },
 ]
 
-// Palabras que el usuario puede decir para confirmar
-const CONFIRMAR = ['sí','si','ok','dale','confirmar','guardar','yes','correcto','exacto','bueno']
-const CANCELAR  = ['no','cancelar','stop','parar','error','mal']
-
-function isConfirm(text) { return CONFIRMAR.some(w => text.toLowerCase().includes(w)) }
-function isCancel(text)  { return CANCELAR.some(w => text.toLowerCase().includes(w)) }
-
 // ── Estados del circuito de voz ───────────────────────────────────────────────
-// idle → listening_item → confirming → saving | cancelled | not_found
+// idle → listening → saving | not_found | error
 const VOICE_STATES = {
-  IDLE:           'idle',
-  LISTENING:      'listening',      // escuchando ítem/cantidad/monto
-  CONFIRMING:     'confirming',     // esperando "sí" o "no"
-  NOT_FOUND:      'not_found',      // ítem no existe
-  SAVING:         'saving',
-  DONE:           'done',
-  ERROR:          'error',
+  IDLE:       'idle',
+  LISTENING:  'listening',   // escuchando ítem/cantidad/monto
+  NOT_FOUND:  'not_found',   // ítem no existe en catálogo
+  SAVING:     'saving',
+  DONE:       'done',
+  ERROR:      'error',
 }
 
 // ── Panel de estado de voz ────────────────────────────────────────────────────
@@ -42,12 +34,11 @@ function VoicePanel({ state, transcript, match, parsed, onDismiss }) {
   if (state === VOICE_STATES.IDLE) return null
 
   const msgs = {
-    [VOICE_STATES.LISTENING]:  { icon:'🎤', color:'#3b82f6', label:'Escuchando…',         sub:'Decí: ítem · cantidad · monto' },
-    [VOICE_STATES.CONFIRMING]: { icon:'💬', color:'#f59e0b', label:'Esperando confirmación…', sub:'🎤 Micrófono activo — decí "sí" o "no"' },
-    [VOICE_STATES.NOT_FOUND]:  { icon:'❓', color:'#ef4444', label:'Ítem no encontrado',   sub:'El ítem no existe en tu catálogo' },
-    [VOICE_STATES.SAVING]:     { icon:'💾', color:'#22c55e', label:'Guardando…',           sub:'' },
-    [VOICE_STATES.DONE]:       { icon:'✅', color:'#22c55e', label:'¡Guardado!',            sub:'' },
-    [VOICE_STATES.ERROR]:      { icon:'⚠️', color:'#ef4444', label:'Error de voz',         sub:'Intentá de nuevo' },
+    [VOICE_STATES.LISTENING]: { icon:'🎤', color:'#3b82f6', label:'Escuchando…',      sub:'Decí: ítem · cantidad · monto' },
+    [VOICE_STATES.NOT_FOUND]: { icon:'❓', color:'#ef4444', label:'Ítem no encontrado', sub:'No existe en tu catálogo' },
+    [VOICE_STATES.SAVING]:    { icon:'💾', color:'#22c55e', label:'Guardando…',         sub:'' },
+    [VOICE_STATES.DONE]:      { icon:'✅', color:'#22c55e', label:'¡Registrado!',        sub:'' },
+    [VOICE_STATES.ERROR]:     { icon:'⚠️', color:'#ef4444', label:'Error de voz',       sub:'Intentá de nuevo' },
   }
   const m = msgs[state] || msgs[VOICE_STATES.ERROR]
 
@@ -77,15 +68,14 @@ function VoicePanel({ state, transcript, match, parsed, onDismiss }) {
       )}
 
       {/* Resumen de lo que va a guardar */}
-      {match && parsed && state === VOICE_STATES.CONFIRMING && (
-        <div style={{ marginTop:10, display:'flex', flexWrap:'wrap', gap:6 }}>
+      {match && parsed && state === VOICE_STATES.DONE && (
+        <div style={{ marginTop:8, display:'flex', flexWrap:'wrap', gap:5 }}>
           {[
             { label:'Ítem',     val: match.nombre },
             { label:'Cantidad', val: parsed.cantidad },
-            { label:'Monto',    val: `$${parsed.monto}` },
-            { label:'Unidad',   val: match.unidad_default },
+            { label:'Monto',    val: parsed.monto ? '$'+parsed.monto : null },
           ].filter(x=>x.val).map(x => (
-            <div key={x.label} style={{ padding:'4px 10px', borderRadius:99, background:`${m.color}18`, border:`1px solid ${m.color}44` }}>
+            <div key={x.label} style={{ padding:'3px 9px', borderRadius:99, background:`${m.color}18`, border:`1px solid ${m.color}44` }}>
               <span style={{ fontSize:10, color:'var(--text-muted)' }}>{x.label}: </span>
               <span style={{ fontSize:12, fontWeight:700, color:'var(--text-primary)' }}>{x.val}</span>
             </div>
@@ -152,12 +142,11 @@ export default function ExpenseForm({ initial, onSave, onCancel }) {
     }, 1500)
   }, [today, onSave])
 
-  // ── Circuito principal de voz ─────────────────────────────────────────────
+  // ── Circuito de voz — directo sin confirmación ───────────────────────────
   const runVoiceFlow = useCallback(async () => {
     if (!supported) { setSrError('Tu navegador no soporta voz. Usá Chrome o Edge.'); return }
     voiceAbort.current = false
 
-    // FASE 1: escuchar ítem/cantidad/monto
     setVoiceState(VOICE_STATES.LISTENING)
     setVoiceTranscript(''); setVoiceMatch(null); setVoiceParsed(null)
 
@@ -165,19 +154,17 @@ export default function ExpenseForm({ initial, onSave, onCancel }) {
     try {
       transcript = await listen(t => setVoiceTranscript(t), { retries: 1 })
     } catch {
-      setVoiceState(VOICE_STATES.ERROR); return
+      setVoiceState(VOICE_STATES.ERROR)
+      setTimeout(() => setVoiceState(VOICE_STATES.IDLE), 2000)
+      return
     }
     if (voiceAbort.current) { setVoiceState(VOICE_STATES.IDLE); return }
 
     setVoiceTranscript(transcript)
     const parsed = parseVoice(transcript)
 
-    // Buscar mejor coincidencia en ítems
     const q = (parsed.itemQuery || '').toLowerCase().trim()
-    if (!q) {
-      await speak('No entendí el nombre del ítem. Intentá de nuevo.')
-      setVoiceState(VOICE_STATES.IDLE); return
-    }
+    if (!q) { setVoiceState(VOICE_STATES.IDLE); return }
 
     const candidates = items
       .filter(it => it.nombre.toLowerCase().includes(q))
@@ -188,48 +175,19 @@ export default function ExpenseForm({ initial, onSave, onCancel }) {
         return a.nombre.localeCompare(b.nombre, 'es')
       })
 
-    // ── Ítem no encontrado ────────────────────────────────────────────────
     if (candidates.length === 0) {
       setVoiceState(VOICE_STATES.NOT_FOUND)
-      await speak(`Ítem no encontrado. Verificá que esté cargado en tu catálogo.`)
+      await speak('Ítem no encontrado.')
+      setTimeout(() => setVoiceState(VOICE_STATES.IDLE), 2500)
       return
     }
 
+    // ── Encontrado: guardar directo ───────────────────────────────────────
     const match = candidates[0]
     setVoiceMatch(match)
     setVoiceParsed(parsed)
-
-    // ── Confirmar con voz ─────────────────────────────────────────────────
-    setVoiceState(VOICE_STATES.CONFIRMING)
-
-    // Resumen corto para que el TTS no dure mucho antes de escuchar
-    const montoStr = parsed.monto ? parsed.monto + ' pesos' : 'sin monto'
-    const resumen  = `${match.nombre}, ${montoStr}. ¿Confirmás?`
-    await speak(resumen, { delay: 800 })   // delay generoso post-TTS
-    if (voiceAbort.current) { setVoiceState(VOICE_STATES.IDLE); return }
-
-    // FASE 2: escuchar confirmación — sin retries, timeout implícito de SR
-    let confirmText = ''
-    try {
-      confirmText = await listen(t => setVoiceTranscript(t), { retries: 0 })
-    } catch(e) {
-      // no-speech en confirmación = cancelar (el usuario no dijo nada)
-      await speak('Tiempo agotado. Cancelado.')
-      setVoiceState(VOICE_STATES.IDLE)
-      setVoiceTranscript(''); setVoiceMatch(null); setVoiceParsed(null)
-      return
-    }
-    if (voiceAbort.current) { setVoiceState(VOICE_STATES.IDLE); return }
-
-    setVoiceTranscript(confirmText)
-
-    if (isConfirm(confirmText)) {
-      await applyAndSave(match, parsed)
-    } else {
-      await speak('Cancelado.')
-      setVoiceState(VOICE_STATES.IDLE)
-      setVoiceTranscript(''); setVoiceMatch(null); setVoiceParsed(null)
-    }
+    await applyAndSave(match, parsed)
+    await speak('Registrado.')
   }, [supported, listen, items, applyAndSave])
 
   const handleMicClick = () => {
@@ -257,9 +215,8 @@ export default function ExpenseForm({ initial, onSave, onCancel }) {
 
   const activeColor = (N1_COLORS[form.n1]||{}).bg || '#3b82f6'
   const micActive = voiceState !== VOICE_STATES.IDLE
-  const micColor  = voiceState === VOICE_STATES.CONFIRMING ? '#f59e0b'
-                  : voiceState === VOICE_STATES.NOT_FOUND  ? '#ef4444'
-                  : voiceState === VOICE_STATES.DONE       ? '#22c55e'
+  const micColor  = voiceState === VOICE_STATES.NOT_FOUND ? '#ef4444'
+                  : voiceState === VOICE_STATES.DONE      ? '#22c55e'
                   : '#3b82f6'
 
   const inp = { padding:'10px 14px', border:'1.5px solid var(--border)', borderRadius:10, fontSize:14, background:'var(--surface)', outline:'none', width:'100%', color:'var(--text-primary)', fontFamily:'inherit' }
@@ -311,7 +268,7 @@ export default function ExpenseForm({ initial, onSave, onCancel }) {
                     background: micActive ? micColor : 'var(--accent)',
                     color:'#fff', display:'flex', alignItems:'center', justifyContent:'center',
                     boxShadow: micActive ? 'none' : '0 2px 10px var(--accent)44',
-                    animation: [VOICE_STATES.LISTENING, VOICE_STATES.CONFIRMING].includes(voiceState) ? 'micPulse 1.4s ease-in-out infinite' : 'none',
+                    animation: voiceState === VOICE_STATES.LISTENING ? 'micPulse 1.4s ease-in-out infinite' : 'none',
                     transition:'background .25s, box-shadow .25s',
                   }}>
                   {micActive ? <IconMicrofonoOff size={18}/> : <IconMicrofono size={18}/>}
