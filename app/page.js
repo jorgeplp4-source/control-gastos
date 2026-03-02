@@ -28,6 +28,7 @@ const ExpenseForm      = dynamic(() => import('../components/ExpenseForm'),     
 const ListView         = dynamic(() => import('../components/ListView'),         { ssr: false, loading: () => <Spinner label="Cargando listado…"       /> })
 const IngresosPage     = dynamic(() => import('../components/IngresosPage'),     { ssr: false, loading: () => <Spinner label="Cargando ingresos…"      /> })
 const AsesorPage       = dynamic(() => import('../components/AsesorPage'),       { ssr: false, loading: () => <Spinner label="Cargando asesor…"        /> })
+const OnboardingModal  = dynamic(() => import('../components/OnboardingModal'),  { ssr: false })
 const ConfigPage       = dynamic(() => import('../components/ConfigPage'),       { ssr: false, loading: () => <Spinner label="Cargando configuración…" /> })
 const NotificationsBell = dynamic(() => import('../components/NotificationsBell'), { ssr: false })
 const Onboarding       = dynamic(() => import('../components/Onboarding'),      { ssr: false })
@@ -51,7 +52,14 @@ export default function Home() {
   const [user, setUser]       = useState(null)
   const router   = useRouter()
   const supabase = createClient()
-  const { t, loadingSettings } = useApp()
+  const { t, loadingSettings, settings } = useApp()
+  const [showOnboarding, setShowOnboarding] = useState(false)
+  useEffect(() => {
+    if (settings && settings.onboarding_completed === false) {
+      setShowOnboarding(true)
+    }
+  }, [settings])
+
   const { ingresos }       = useIngresos()
   const { presupuestos }   = usePresupuestos()
 
@@ -216,7 +224,7 @@ export default function Home() {
       </nav>
 
       {/* ── ONBOARDING ─────────────────────────────────────────────────────── */}
-      <Onboarding onComplete={() => setTab('registro')} />
+      {showOnboarding && <OnboardingModal onComplete={() => setShowOnboarding(false)} />}
 
       {/* ── MAIN ───────────────────────────────────────────────────────────── */}
       <main style={{ maxWidth: 1200, margin: '0 auto', padding: '24px 16px 80px' }}>
