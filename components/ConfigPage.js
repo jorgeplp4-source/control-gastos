@@ -159,6 +159,15 @@ export default function ConfigPage() {
           <RecurrentesPage />
         </Section>
       )
+
+      case 'presupuestos': return (
+        <Section title="Presupuestos" Icon={IconDinero} noSave
+          subtitle="Definí límites mensuales por categoría para activar alertas automáticas">
+          <PresupuestosManager />
+        </Section>
+      )
+
+      default: return null
     }
   }
 
