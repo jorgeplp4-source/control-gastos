@@ -4,6 +4,10 @@ import dynamic from 'next/dynamic'
 import { createClient } from '../lib/supabase-browser'
 import { useRouter } from 'next/navigation'
 import { useApp } from '../context/AppContext'
+import { useIngresos } from '../lib/useIngresos'
+import { usePresupuestos } from '../lib/usePresupuestos'
+import { useAlertas } from '../lib/useAlertas'
+import { getPeriodo } from '../lib/constants'
 import {
   IconDashboard, IconRegistrar, IconListado, IconConfig,
   IconCerrar, IconSpinner, IconSalir, IconBilletera, IconCheck, IconDinero,
@@ -46,6 +50,24 @@ export default function Home() {
   const router   = useRouter()
   const supabase = createClient()
   const { t, loadingSettings } = useApp()
+  const { ingresos }       = useIngresos()
+  const { presupuestos }   = usePresupuestos()
+
+  // Alertas del mes actual
+  const mesPeriodo = getPeriodo('mes')
+  const gastosMes  = gastos.filter(g => g.fecha >= mesPeriodo.from && g.fecha <= mesPeriodo.to)
+  const ingresosMes= ingresos.filter(i => i.fecha >= mesPeriodo.from && i.fecha <= mesPeriodo.to)
+  // Para patrones: todos los gastos excepto el mes actual
+  const gastosHist = gastos.filter(g => g.fecha < mesPeriodo.from)
+
+  const alertas = useAlertas({
+    gastos:          gastosMes,
+    gastosHistorico: gastosHist,
+    ingresos:        ingresosMes,
+    presupuestos,
+    from: mesPeriodo.from,
+    to:   mesPeriodo.to,
+  })
 
   const showToast = (msg, ok = true) => {
     setToast({ msg, ok })
@@ -160,7 +182,7 @@ export default function Home() {
                 </button>
               )
             })}
-            <NotificationsBell />
+            <NotificationsBell alertas={alertas} />
             <button onClick={handleLogout} aria-label="Cerrar sesión"
               style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,.15)', background: 'transparent', color: 'var(--header-muted)', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
               <IconSalir size={14} aria-hidden="true" />
@@ -196,7 +218,7 @@ export default function Home() {
 
       {/* ── MAIN ───────────────────────────────────────────────────────────── */}
       <main style={{ maxWidth: 1200, margin: '0 auto', padding: '24px 16px 80px' }}>
-        {tab === 'dashboard'     && <Dashboard  gastos={gastos} onNavigate={navigateTo} />}
+        {tab === 'dashboard'     && <Dashboard  gastos={gastos} onNavigate={navigateTo} alertas={alertas} />}
         {tab === 'registro'      && <ExpenseForm key={editTarget?.id || 'new'} initial={editTarget} onSave={handleSave} onCancel={() => { setEditTarget(null); setTab('listado') }} />}
         {tab === 'listado'       && <ListView   gastos={gastos} onDelete={handleDelete} onEdit={g => { setEditTarget(g); setTab('registro') }} />}
         {tab === 'ingresos'      && <IngresosPage />}

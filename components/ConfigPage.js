@@ -5,9 +5,10 @@ import { useApp } from '../context/AppContext'
 import CatalogManager from './CatalogManager'
 import RecurrentesPage from './RecurrentesPage'
 import UnitsManager from './UnitsManager'
+import PresupuestosManager from './PresupuestosManager'
 import {
   IconTema, IconGlobo, IconIdioma, IconEtiquetas, IconRecurrentes, IconItems,
-  IconClaro, IconOscuro, IconSistema, IconExito, IconGuardar, IconConfig,
+  IconClaro, IconOscuro, IconSistema, IconExito, IconGuardar, IconConfig, IconDinero,
 } from '../lib/icons'
 
 const CURRENCIES = [
@@ -40,7 +41,8 @@ const SECCIONES = [
   { id:'idioma',     label:'Idioma',        Icon:IconIdioma,     group:'Preferencias' },
   { id:'catalogo',   label:'Catálogo',      Icon:IconEtiquetas,  group:'Datos' },
   { id:'unidades',   label:'Unidades',      Icon:IconItems,      group:'Datos' },
-  { id:'recurrentes',label:'Recurrentes',   Icon:IconRecurrentes,group:'Datos' },
+  { id:'recurrentes',   label:'Recurrentes',   Icon:IconRecurrentes, group:'Datos'       },
+  { id:'presupuestos',  label:'Presupuestos',  Icon:IconDinero,      group:'Alertas'     },
 ]
 
 export default function ConfigPage() {
@@ -79,7 +81,7 @@ export default function ConfigPage() {
 
   const inp = { padding:'9px 14px', border:'1.5px solid var(--border)', borderRadius:10, fontSize:14, background:'var(--surface)', outline:'none', color:'var(--text-primary)', fontFamily:'inherit', width:'100%' }
 
-  const showSave = !['catalogo','unidades','recurrentes'].includes(seccion)
+  const showSave = !['catalogo','unidades','recurrentes','presupuestos'].includes(seccion)
 
   // Agrupar secciones
   const groups = {}

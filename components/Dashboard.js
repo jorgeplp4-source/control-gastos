@@ -4,6 +4,7 @@ import { N1_COLORS, fmt, uniq, PERIODOS, getPeriodo, getPeriodoAnterior } from '
 import { useChart, PALETTE, baseOptions } from '../lib/useChart'
 import { useApp } from '../context/AppContext'
 import { useIngresos } from '../lib/useIngresos'
+import { useAlertas, ALERTA_STYLE } from '../lib/useAlertas'
 import {
   IconDinero, IconCalendario, IconTrofeo, IconEtiquetas,
   IconRegistrar, IconRecurrentes, IconTip, IconCaretDown,
@@ -137,7 +138,48 @@ function ItemList({ items, valueKey, valueLabel, fmtValue, paletteOffset = 0, em
 }
 
 // ── Dashboard principal ──────────────────────────────────────────────────────
-export default function Dashboard({ gastos: todosLosGastos, onNavigate }) {
+
+// ── Banners de alerta ─────────────────────────────────────────────────────────
+function AlertaBanners({ alertas, onNavigate }) {
+  if (!alertas || alertas.length === 0) return null
+  const criticas = alertas.filter(a => a.severidad === 'critica')
+  const advertencias = alertas.filter(a => a.severidad === 'advertencia')
+  const mostrar = [...criticas, ...advertencias].slice(0, 3)
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+      {mostrar.map(a => {
+        const s = ALERTA_STYLE[a.severidad]
+        return (
+          <div key={a.id} style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 16px',
+            background:s.bg, border:`1px solid ${s.border}`, borderLeft:`4px solid ${s.color}`,
+            borderRadius:12, cursor:'default' }}>
+            <span style={{ fontSize:18, flexShrink:0 }}>{s.icon}</span>
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ fontSize:13, fontWeight:700, color:s.color }}>{a.titulo}</div>
+              <div style={{ fontSize:12, color:'#64748b', marginTop:1 }}>{a.detalle}</div>
+            </div>
+            {a.pct !== undefined && (
+              <div style={{ textAlign:'right', flexShrink:0 }}>
+                <div style={{ fontSize:14, fontWeight:800, color:s.color }}>{Math.min(a.pct,999)}%</div>
+                <div style={{ width:60, height:4, borderRadius:2, background:'#e2e8f0', overflow:'hidden', marginTop:3 }}>
+                  <div style={{ height:'100%', width:`${Math.min(a.pct,100)}%`,
+                    background:s.color, borderRadius:2 }}/>
+                </div>
+              </div>
+            )}
+          </div>
+        )
+      })}
+      {alertas.length > 3 && (
+        <div style={{ fontSize:12, color:'var(--text-muted)', textAlign:'center', padding:'4px 0' }}>
+          +{alertas.length - 3} alertas más en la campana 🔔
+        </div>
+      )}
+    </div>
+  )
+}
+
+export default function Dashboard({ gastos: todosLosGastos, onNavigate, alertas = [] }) {
   const { fmtMoney } = useApp()
   const money = v => fmtMoney ? fmtMoney(v) : fmt(v)
 
@@ -321,6 +363,9 @@ export default function Dashboard({ gastos: todosLosGastos, onNavigate }) {
           </div>
         </div>
       </div>
+
+      {/* ── Banners de alerta ── */}
+      <AlertaBanners alertas={alertas} onNavigate={onNavigate} />
 
       {/* ── Panel Ingresos vs Gastos ── */}
       {totalIngresos > 0 && (
