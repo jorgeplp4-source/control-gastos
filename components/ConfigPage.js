@@ -1,4 +1,49 @@
-// ... (importaciones se mantienen igual)
+'use client'
+import { useState, useEffect } from 'react'
+import { createClient } from '../lib/supabase-browser'
+import { useApp } from '../context/AppContext'
+import CatalogManager from './CatalogManager'
+import RecurrentesPage from './RecurrentesPage'
+import UnitsManager from './UnitsManager'
+import PresupuestosManager from './PresupuestosManager'
+import {
+  IconTema, IconGlobo, IconIdioma, IconEtiquetas, IconRecurrentes, IconItems,
+  IconClaro, IconOscuro, IconSistema, IconExito, IconGuardar, IconConfig, IconDinero,
+} from '../lib/icons'
+
+const CURRENCIES = [
+  { code:'ARS', symbol:'$',  name:'Peso argentino'   },
+  { code:'USD', symbol:'US$',name:'Dólar'             },
+  { code:'EUR', symbol:'€',  name:'Euro'              },
+  { code:'BRL', symbol:'R$', name:'Real brasileño'    },
+  { code:'CLP', symbol:'$',  name:'Peso chileno'      },
+  { code:'MXN', symbol:'$',  name:'Peso mexicano'     },
+  { code:'COP', symbol:'$',  name:'Peso colombiano'   },
+  { code:'UYU', symbol:'$',  name:'Peso uruguayo'     },
+  { code:'PYG', symbol:'₲',  name:'Guaraní paraguayo' },
+]
+
+const DATE_FORMATS = [
+  { value:'DD/MM/YYYY', label:'DD/MM/AAAA  (31/12/2025)' },
+  { value:'MM/DD/YYYY', label:'MM/DD/AAAA  (12/31/2025)' },
+  { value:'YYYY-MM-DD', label:'AAAA-MM-DD  (2025-12-31)' },
+]
+
+const THEMES = [
+  { val:'light', label:'Claro',   Icon:IconClaro   },
+  { val:'dark',  label:'Oscuro',  Icon:IconOscuro  },
+  { val:'system',label:'Sistema', Icon:IconSistema },
+]
+
+const SECCIONES = [
+  { id:'apariencia', label:'Apariencia',    Icon:IconTema,       group:'Preferencias' },
+  { id:'regional',   label:'Regional',      Icon:IconGlobo,      group:'Preferencias' },
+  { id:'idioma',     label:'Idioma',        Icon:IconIdioma,     group:'Preferencias' },
+  { id:'catalogo',   label:'Catálogo',      Icon:IconEtiquetas,  group:'Datos' },
+  { id:'unidades',   label:'Unidades',      Icon:IconItems,      group:'Datos' },
+  { id:'recurrentes',   label:'Recurrentes',   Icon:IconRecurrentes, group:'Datos'       },
+  { id:'presupuestos',  label:'Presupuestos',  Icon:IconDinero,      group:'Alertas'     },
+]
 
 export default function ConfigPage() {
   const supabase = createClient()
@@ -85,7 +130,7 @@ export default function ConfigPage() {
         <Section title="Idioma" Icon={IconIdioma}>
           <label style={LBL}>Idioma de la interfaz</label>
           <div style={{ display:'flex', gap:10 }}>
-            {[{ val:'es', label:'Español', flag:'🇦' }, { val:'en', label:'English', flag:'🇺🇸' }].map(opt => (
+            {[{ val:'es', label:'Español', flag:'🇦🇷' }, { val:'en', label:'English', flag:'🇺🇸' }].map(opt => (
               <button key={opt.val} onClick={() => setL('language', opt.val)} aria-pressed={local.language===opt.val}
                 style={{ flex:1, padding:'12px', borderRadius:10, border:`2px solid ${local.language===opt.val?'var(--accent)':'var(--border)'}`, background:local.language===opt.val?'var(--accent-light)':'var(--surface2)', cursor:'pointer', fontWeight:700, fontSize:14, color:local.language===opt.val?'var(--accent)':'var(--text-secondary)', display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
                 <span style={{ fontSize:20 }}>{opt.flag}</span>{opt.label}
@@ -127,18 +172,7 @@ export default function ConfigPage() {
   }
 
   return (
-    <div style={{ 
-      display:'flex', 
-      flexDirection: isMobile ? 'column' : 'row',  // CAMBIO: layout vertical en móvil
-      gap:0, 
-      minHeight: isMobile ? 'calc(100vh - 140px)' : '60vh',  // CAMBIO: altura dinámica
-      background:'var(--surface)', 
-      borderRadius: isMobile ? 0 : 20,  // CAMBIO: sin bordes en móvil
-      boxShadow:'var(--shadow)', 
-      border:'1px solid var(--border)', 
-      overflow:'hidden',
-      marginBottom: isMobile ? '80px' : 0  // CAMBIO: espacio para bottom nav
-    }}>
+    <div style={{ display:'flex', gap:0, minHeight:'60vh', background:'var(--surface)', borderRadius:20, boxShadow:'var(--shadow)', border:'1px solid var(--border)', overflow:'hidden' }}>
 
       {/* Sidebar desktop */}
       {!isMobile && (
@@ -161,100 +195,32 @@ export default function ConfigPage() {
         </nav>
       )}
 
-      {/* Mobile tabs - MEJORADO */}
+      {/* Mobile tabs */}
       {isMobile && (
-        <nav style={{ 
-          display:'flex', 
-          overflowX:'auto', 
-          overflowY:'hidden',
-          borderBottom:'1px solid var(--border)', 
-          background:'var(--surface2)',
-          flexShrink:0, 
-          width:'100%',
-          scrollbarWidth:'none',  // Firefox
-          msOverflowStyle:'none',  // IE
-          padding:'0 4px',
-          gap:'4px'
-        }} aria-label="Configuración">
+        <nav style={{ display:'flex', overflowX:'auto', borderBottom:'1px solid var(--border)', background:'var(--surface2)', flexShrink:0, width:'100%' }} aria-label="Configuración">
           {SECCIONES.map(({ id, label, Icon:SIcon }) => (
             <button key={id} onClick={() => setSeccion(id)} aria-current={seccion===id?'page':undefined}
-              style={{ 
-                padding:'12px 16px',  // CAMBIO: más padding
-                borderBottom:seccion===id?'3px solid var(--accent)':'3px solid transparent', 
-                background:'transparent', 
-                color:seccion===id?'var(--accent)':'var(--text-muted)', 
-                fontWeight:seccion===id?700:500, 
-                fontSize:12,  // CAMBIO: fuente un poco más grande
-                cursor:'pointer', 
-                whiteSpace:'nowrap', 
-                display:'flex', 
-                alignItems:'center', 
-                gap:6,  // CAMBIO: más espacio
-                flexShrink:0,
-                transition:'all .15s',
-                borderRadius:'8px 8px 0 0',
-                minWidth:'auto'
-              }}>
-              <SIcon size={16} weight={seccion===id?'fill':'regular'} aria-hidden="true" />
+              style={{ padding:'10px 14px', border:'none', borderBottom:seccion===id?'2px solid var(--accent)':'2px solid transparent', background:'transparent', color:seccion===id?'var(--accent)':'var(--text-muted)', fontWeight:seccion===id?700:500, fontSize:11, cursor:'pointer', whiteSpace:'nowrap', display:'flex', alignItems:'center', gap:4, flexShrink:0 }}>
+              <SIcon size={13} weight={seccion===id?'fill':'regular'} aria-hidden="true" />
               {label}
             </button>
           ))}
-          <style>{`
-            nav[aria-label="Configuración"]::-webkit-scrollbar { 
-              display: none;  // Chrome, Safari
-            }
-          `}</style>
         </nav>
       )}
 
-      {/* Contenido - MEJORADO */}
-      <div style={{ 
-        flex:1, 
-        padding: isMobile ? '20px 16px' : '24px 28px', 
-        overflowY:'auto',
-        minHeight: isMobile ? '300px' : 'auto'  // CAMBIO: altura mínima en móvil
-      }}>
+      {/* Contenido */}
+      <div style={{ flex:1, padding: isMobile ? '20px 16px' : '24px 28px', overflowY:'auto' }}>
         {renderSection()}
 
         {showSave && (
-          <div style={{ 
-            marginTop:22, 
-            display:'flex', 
-            alignItems:'center', 
-            gap:12, 
-            paddingTop:18, 
-            borderTop:'1px solid var(--border)',
-            flexWrap: isMobile ? 'wrap' : 'nowrap'  // CAMBIO: permitir wrap en móvil
-          }}>
+          <div style={{ marginTop:22, display:'flex', alignItems:'center', gap:12, paddingTop:18, borderTop:'1px solid var(--border)' }}>
             {saved && (
-              <span style={{ 
-                color:'#10b981', 
-                fontWeight:700, 
-                fontSize: isMobile ? 12 : 13,  // CAMBIO: fuente más pequeña en móvil
-                display:'flex', 
-                alignItems:'center', 
-                gap:5 
-              }}>
+              <span style={{ color:'#10b981', fontWeight:700, fontSize:13, display:'flex', alignItems:'center', gap:5 }}>
                 <IconExito size={15} weight="fill" aria-hidden="true" /> ¡Guardado!
               </span>
             )}
             <button onClick={handleSave} disabled={saving}
-              style={{ 
-                padding:'10px 24px', 
-                borderRadius:10, 
-                border:'none', 
-                background:'linear-gradient(135deg,var(--accent),var(--accent-dark))', 
-                color:'#fff', 
-                fontSize:13, 
-                fontWeight:800, 
-                cursor:saving?'wait':'pointer', 
-                display:'flex', 
-                alignItems:'center', 
-                gap:7, 
-                boxShadow:'0 4px 14px rgba(59,130,246,.3)',
-                width: isMobile ? '100%' : 'auto',  // CAMBIO: botón full width en móvil
-                justifyContent:'center'
-              }}>
+              style={{ padding:'10px 24px', borderRadius:10, border:'none', background:'linear-gradient(135deg,var(--accent),var(--accent-dark))', color:'#fff', fontSize:13, fontWeight:800, cursor:saving?'wait':'pointer', display:'flex', alignItems:'center', gap:7, boxShadow:'0 4px 14px rgba(59,130,246,.3)' }}>
               <IconGuardar size={14} aria-hidden="true" />
               {saving ? 'Guardando…' : 'Guardar cambios'}
             </button>
@@ -271,7 +237,7 @@ function Section({ title, Icon:SIcon, subtitle, children }) {
   return (
     <div>
       <div style={{ marginBottom:22 }}>
-        <h3 style={{ margin:'0 0 3px', fontSize: isMobile ? 15 : 16, fontWeight:800, color:'var(--text-primary)', display:'flex', alignItems:'center', gap:8 }}>
+        <h3 style={{ margin:'0 0 3px', fontSize:16, fontWeight:800, color:'var(--text-primary)', display:'flex', alignItems:'center', gap:8 }}>
           <SIcon size={18} weight="duotone" color="var(--accent)" aria-hidden="true" />
           {title}
         </h3>
