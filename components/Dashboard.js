@@ -139,7 +139,11 @@ function ItemList({ items, valueKey, valueLabel, fmtValue, paletteOffset = 0, em
 
 // ── Banners de alerta — con botón para cerrar ─────────────────────────────────
 function AlertaBanners({ alertas, onNavigate }) {
-  const [cerradas, setCerradas] = useState(new Set())
+  const [cerradas, setCerradas] = useState(() => {
+  try {
+    const stored = sessionStorage.getItem('alertas_cerradas')
+    return new Set(stored ? JSON.parse(stored) : [])
+  } catch { return new Set() }
   if (!alertas || alertas.length === 0) return null
 
   const criticas    = alertas.filter(a => a.severidad === 'critica'     && !cerradas.has(a.id))
