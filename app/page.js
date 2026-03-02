@@ -23,52 +23,53 @@ function Spinner({ label = 'Cargando…' }) {
   )
 }
 
-const Dashboard        = dynamic(() => import('../components/Dashboard'),       { ssr: false, loading: () => <Spinner label="Cargando dashboard…"     /> })
-const ExpenseForm      = dynamic(() => import('../components/ExpenseForm'),      { ssr: false, loading: () => <Spinner label="Cargando formulario…"    /> })
-const ListView         = dynamic(() => import('../components/ListView'),         { ssr: false, loading: () => <Spinner label="Cargando listado…"       /> })
-const IngresosPage     = dynamic(() => import('../components/IngresosPage'),     { ssr: false, loading: () => <Spinner label="Cargando ingresos…"      /> })
-const AsesorPage       = dynamic(() => import('../components/AsesorPage'),       { ssr: false, loading: () => <Spinner label="Cargando asesor…"        /> })
-const OnboardingModal  = dynamic(() => import('../components/OnboardingModal'),  { ssr: false })
-const ConfigPage       = dynamic(() => import('../components/ConfigPage'),       { ssr: false, loading: () => <Spinner label="Cargando configuración…" /> })
+const Dashboard        = dynamic(() => import('../components/Dashboard'),        { ssr: false, loading: () => <Spinner label="Cargando dashboard…"     /> })
+const ExpenseForm      = dynamic(() => import('../components/ExpenseForm'),       { ssr: false, loading: () => <Spinner label="Cargando formulario…"    /> })
+const ListView         = dynamic(() => import('../components/ListView'),          { ssr: false, loading: () => <Spinner label="Cargando listado…"       /> })
+const IngresosPage     = dynamic(() => import('../components/IngresosPage'),      { ssr: false, loading: () => <Spinner label="Cargando ingresos…"      /> })
+const AsesorPage       = dynamic(() => import('../components/AsesorPage'),        { ssr: false, loading: () => <Spinner label="Cargando asesor…"        /> })
+const OnboardingModal  = dynamic(() => import('../components/OnboardingModal'),   { ssr: false })
+const ConfigPage       = dynamic(() => import('../components/ConfigPage'),        { ssr: false, loading: () => <Spinner label="Cargando configuración…" /> })
 const NotificationsBell = dynamic(() => import('../components/NotificationsBell'), { ssr: false })
-const Onboarding       = dynamic(() => import('../components/Onboarding'),      { ssr: false })
 
-// ── Definición de tabs — Icon: componente Phosphor ────────────────────────────
+// ── Navegación — labels directos, sin t() para evitar fallback al key ─────────
 const NAV_TABS = [
-  { id: 'dashboard',     labelKey: 'nav.dashboard',    fallback: 'Dashboard', Icon: IconDashboard },
-  { id: 'registro',      labelKey: 'nav.registro',     fallback: 'Registrar', Icon: IconRegistrar },
-  { id: 'listado',       labelKey: 'nav.listado',      fallback: 'Listado',   Icon: IconListado   },
-  { id: 'ingresos',      labelKey: 'nav.ingresos',     fallback: 'Ingresos',  Icon: IconDinero    },
-  { id: 'asesor',        labelKey: 'nav.asesor',       fallback: 'Asesor',    Icon: IconTip       },
-  { id: 'configuracion', labelKey: 'nav.configuracion', fallback: 'Config',   Icon: IconConfig    },
+  { id: 'dashboard',     label: 'Inicio',      Icon: IconDashboard },
+  { id: 'registro',      label: 'Nuevo gasto', Icon: IconRegistrar },
+  { id: 'listado',       label: 'Mis gastos',  Icon: IconListado   },
+  { id: 'ingresos',      label: 'Ingresos',    Icon: IconDinero    },
+  { id: 'asesor',        label: 'Asesor',      Icon: IconTip       },
+  { id: 'configuracion', label: 'Ajustes',     Icon: IconConfig    },
 ]
 
 export default function Home() {
-  const [tab, setTab]         = useState('dashboard')
-  const [gastos, setGastos]   = useState([])
-  const [loading, setLoading] = useState(true)
+  const [tab, setTab]               = useState('dashboard')
+  const [gastos, setGastos]         = useState([])
+  const [loading, setLoading]       = useState(true)
   const [editTarget, setEditTarget] = useState(null)
-  const [toast, setToast]     = useState(null)
-  const [user, setUser]       = useState(null)
+  const [toast, setToast]           = useState(null)
+  const [user, setUser]             = useState(null)
+  const [showOnboarding, setShowOnboarding] = useState(false)
+
   const router   = useRouter()
   const supabase = createClient()
-  const { t, loadingSettings, settings } = useApp()
-  const [showOnboarding, setShowOnboarding] = useState(false)
-  useEffect(() => {
-    if (settings !== null && !settings.onboarding_completed && !loadingSettings) {
-    setShowOnboarding(true)
-    }
-  }, [settings])
+  const { loadingSettings, settings } = useApp()
 
-  const { ingresos }       = useIngresos()
-  const { presupuestos }   = usePresupuestos()
+  // Mostrar onboarding solo la primera vez, esperando que settings termine de cargar
+  useEffect(() => {
+    if (!loadingSettings && settings && !settings.onboarding_completed) {
+      setShowOnboarding(true)
+    }
+  }, [loadingSettings, settings?.onboarding_completed])
+
+  const { ingresos }     = useIngresos()
+  const { presupuestos } = usePresupuestos()
 
   // Alertas del mes actual
-  const mesPeriodo = getPeriodo('mes')
-  const gastosMes  = gastos.filter(g => g.fecha >= mesPeriodo.from && g.fecha <= mesPeriodo.to)
-  const ingresosMes= ingresos.filter(i => i.fecha >= mesPeriodo.from && i.fecha <= mesPeriodo.to)
-  // Para patrones: todos los gastos excepto el mes actual
-  const gastosHist = gastos.filter(g => g.fecha < mesPeriodo.from)
+  const mesPeriodo  = getPeriodo('mes')
+  const gastosMes   = gastos.filter(g => g.fecha >= mesPeriodo.from && g.fecha <= mesPeriodo.to)
+  const ingresosMes = ingresos.filter(i => i.fecha >= mesPeriodo.from && i.fecha <= mesPeriodo.to)
+  const gastosHist  = gastos.filter(g => g.fecha < mesPeriodo.from)
 
   const alertas = useAlertas({
     gastos:          gastosMes,
@@ -123,7 +124,7 @@ export default function Home() {
       return [record, ...rest].sort((a, b) => b.fecha.localeCompare(a.fecha))
     })
     setEditTarget(null)
-    if (isEdit) setTab('listado')   // solo volver al listado al editar, no al registrar nuevo
+    if (isEdit) setTab('listado')
     showToast(isEdit ? 'Gasto actualizado' : _recurrente ? 'Gasto + recurrencia creados' : 'Gasto registrado')
   }
 
@@ -145,7 +146,7 @@ export default function Home() {
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)' }}>
       <div style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
         <IconSpinner size={48} style={{ animation: 'spin 1s linear infinite', display: 'inline-block', marginBottom: 12 }} aria-hidden="true" />
-        <p style={{ fontWeight: 600 }}>{t('common.loading') || 'Cargando…'}</p>
+        <p style={{ fontWeight: 600 }}>Cargando…</p>
         <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
       </div>
     </div>
@@ -154,7 +155,7 @@ export default function Home() {
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
 
-      {/* ── TOAST ─────────────────────────────────────────────────────────── */}
+      {/* ── TOAST ──────────────────────────────────────────────────────────── */}
       {toast && (
         <div role="alert" aria-live="polite"
           style={{ position: 'fixed', top: 20, right: 20, zIndex: 9999, background: toast.ok ? '#10b981' : '#ef4444', color: '#fff', padding: '12px 18px', borderRadius: 12, fontWeight: 700, fontSize: 14, boxShadow: '0 8px 24px rgba(0,0,0,.2)', display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -165,7 +166,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* ── HEADER ────────────────────────────────────────────────────────── */}
+      {/* ── HEADER ─────────────────────────────────────────────────────────── */}
       <header style={{ background: 'var(--header-bg)', boxShadow: '0 4px 24px rgba(0,0,0,.3)', position: 'sticky', top: 0, zIndex: 100 }}>
         <div style={{ maxWidth: 1200, margin: '0 auto', padding: '14px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
 
@@ -181,14 +182,14 @@ export default function Home() {
           {/* Desktop nav */}
           <nav className="desktop-nav" aria-label="Navegación principal"
             style={{ display: 'flex', gap: 5, flexWrap: 'wrap', alignItems: 'center' }}>
-            {NAV_TABS.map(({ id, labelKey, fallback, Icon: NavIcon }) => {
+            {NAV_TABS.map(({ id, label, Icon: NavIcon }) => {
               const active = tab === id
               return (
                 <button key={id} onClick={() => navigateTo(id)}
                   aria-current={active ? 'page' : undefined}
                   style={{ padding: '7px 14px', borderRadius: 8, border: 'none', fontWeight: 700, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap', transition: 'all .15s', background: active ? 'linear-gradient(135deg,var(--accent),var(--accent-dark))' : 'rgba(255,255,255,.08)', color: active ? '#fff' : 'var(--header-muted)', boxShadow: active ? '0 2px 10px rgba(59,130,246,.35)' : 'none' }}>
                   <NavIcon size={15} weight={active ? 'fill' : 'regular'} aria-hidden="true" />
-                  {t(labelKey) || fallback}
+                  {label}
                 </button>
               )
             })}
@@ -196,7 +197,7 @@ export default function Home() {
             <button onClick={handleLogout} aria-label="Cerrar sesión"
               style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,.15)', background: 'transparent', color: 'var(--header-muted)', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
               <IconSalir size={14} aria-hidden="true" />
-              {t('nav.salir') || 'Salir'}
+              Salir
             </button>
           </nav>
         </div>
@@ -210,14 +211,14 @@ export default function Home() {
       {/* ── MOBILE BOTTOM NAV ──────────────────────────────────────────────── */}
       <nav className="mobile-nav" aria-label="Navegación móvil"
         style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: 'var(--surface)', borderTop: '1px solid var(--border)', display: 'none', justifyContent: 'space-around', padding: '8px 0 max(8px,env(safe-area-inset-bottom))', zIndex: 100 }}>
-        {NAV_TABS.map(({ id, labelKey, fallback, Icon: NavIcon }) => {
+        {NAV_TABS.map(({ id, label, Icon: NavIcon }) => {
           const active = tab === id
           return (
             <button key={id} onClick={() => navigateTo(id)}
               aria-current={active ? 'page' : undefined}
               style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, border: 'none', background: 'none', cursor: 'pointer', padding: '4px 8px', color: active ? 'var(--accent)' : 'var(--text-muted)', minWidth: 52, transition: 'color .15s' }}>
               <NavIcon size={22} weight={active ? 'fill' : 'regular'} aria-hidden="true" />
-              <span style={{ fontSize: 10, fontWeight: active ? 800 : 500 }}>{t(labelKey) || fallback}</span>
+              <span style={{ fontSize: 10, fontWeight: active ? 800 : 500 }}>{label}</span>
             </button>
           )
         })}
