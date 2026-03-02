@@ -55,8 +55,8 @@ export default function Home() {
   const { t, loadingSettings, settings } = useApp()
   const [showOnboarding, setShowOnboarding] = useState(false)
   useEffect(() => {
-    if (settings && settings.onboarding_completed === false) {
-      setShowOnboarding(true)
+    if (settings !== null && !settings.onboarding_completed && !loadingSettings) {
+    setShowOnboarding(true)
     }
   }, [settings])
 
