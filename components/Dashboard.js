@@ -108,7 +108,7 @@ function DeltaBadge({ current, prev }) {
   )
 }
 
-// ── Lista de ítems (Top por Gasto o Cantidad) ────────────────────────────────
+// ── Lista de ítems ────────────────────────────────────────────────────────────
 function ItemList({ items, valueKey, valueLabel, fmtValue, paletteOffset = 0, emptyMsg }) {
   if (!items.length) return (
     <p style={{ color: 'var(--text-muted)', fontSize: 13, textAlign: 'center', padding: '30px 0', margin: 0 }}>{emptyMsg}</p>
@@ -137,14 +137,18 @@ function ItemList({ items, valueKey, valueLabel, fmtValue, paletteOffset = 0, em
   )
 }
 
-// ── Dashboard principal ──────────────────────────────────────────────────────
-
-// ── Banners de alerta ─────────────────────────────────────────────────────────
+// ── Banners de alerta — con botón para cerrar ─────────────────────────────────
 function AlertaBanners({ alertas, onNavigate }) {
+  const [cerradas, setCerradas] = useState(new Set())
   if (!alertas || alertas.length === 0) return null
-  const criticas = alertas.filter(a => a.severidad === 'critica')
-  const advertencias = alertas.filter(a => a.severidad === 'advertencia')
-  const mostrar = [...criticas, ...advertencias].slice(0, 3)
+
+  const criticas    = alertas.filter(a => a.severidad === 'critica'     && !cerradas.has(a.id))
+  const advertencias= alertas.filter(a => a.severidad === 'advertencia' && !cerradas.has(a.id))
+  const mostrar     = [...criticas, ...advertencias].slice(0, 3)
+  if (!mostrar.length) return null
+
+  const cerrar = (id) => setCerradas(prev => new Set([...prev, id]))
+
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
       {mostrar.map(a => {
@@ -152,7 +156,7 @@ function AlertaBanners({ alertas, onNavigate }) {
         return (
           <div key={a.id} style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 16px',
             background:s.bg, border:`1px solid ${s.border}`, borderLeft:`4px solid ${s.color}`,
-            borderRadius:12, cursor:'default' }}>
+            borderRadius:12 }}>
             <span style={{ fontSize:18, flexShrink:0 }}>{s.icon}</span>
             <div style={{ flex:1, minWidth:0 }}>
               <div style={{ fontSize:13, fontWeight:700, color:s.color }}>{a.titulo}</div>
@@ -162,17 +166,26 @@ function AlertaBanners({ alertas, onNavigate }) {
               <div style={{ textAlign:'right', flexShrink:0 }}>
                 <div style={{ fontSize:14, fontWeight:800, color:s.color }}>{Math.min(a.pct,999)}%</div>
                 <div style={{ width:60, height:4, borderRadius:2, background:'#e2e8f0', overflow:'hidden', marginTop:3 }}>
-                  <div style={{ height:'100%', width:`${Math.min(a.pct,100)}%`,
-                    background:s.color, borderRadius:2 }}/>
+                  <div style={{ height:'100%', width:`${Math.min(a.pct,100)}%`, background:s.color, borderRadius:2 }}/>
                 </div>
               </div>
             )}
+            {/* Botón cerrar */}
+            <button onClick={() => cerrar(a.id)}
+              title="Cerrar alerta"
+              style={{ border:'none', background:'none', cursor:'pointer', color:'#94a3b8',
+                fontSize:16, lineHeight:1, padding:'2px 4px', borderRadius:4, flexShrink:0,
+                display:'flex', alignItems:'center', justifyContent:'center' }}
+              onMouseEnter={e => e.currentTarget.style.color = s.color}
+              onMouseLeave={e => e.currentTarget.style.color = '#94a3b8'}>
+              ✕
+            </button>
           </div>
         )
       })}
-      {alertas.length > 3 && (
+      {alertas.filter(a => !cerradas.has(a.id)).length > 3 && (
         <div style={{ fontSize:12, color:'var(--text-muted)', textAlign:'center', padding:'4px 0' }}>
-          +{alertas.length - 3} alertas más en la campana 🔔
+          +{alertas.filter(a => !cerradas.has(a.id)).length - 3} alertas más en la campana 🔔
         </div>
       )}
     </div>
@@ -181,184 +194,128 @@ function AlertaBanners({ alertas, onNavigate }) {
 
 export default function Dashboard({ gastos: todosLosGastos, onNavigate, alertas = [] }) {
   const { fmtMoney } = useApp()
-  const money = v => fmtMoney ? fmtMoney(v) : fmt(v)
-
-  const { ingresos: todosLosIngresos } = useIngresos()
+  const { ingresos } = useIngresos()
+  const money = fmtMoney
 
   const [periodo, setPeriodo] = useState('mes')
-  const [from, setFrom] = useState(() => getPeriodo('mes').from)
-  const [to,   setTo]   = useState(() => getPeriodo('mes').to)
+  const initRng = getPeriodo('mes')
+  const [from, setFrom] = useState(initRng.from)
+  const [to,   setTo]   = useState(initRng.to)
 
-  // Filtrado período actual
   const gastos = useMemo(() =>
-    todosLosGastos.filter(g => (!from || g.fecha >= from) && (!to || g.fecha <= to)),
+    todosLosGastos.filter(g => g.fecha >= from && g.fecha <= to),
     [todosLosGastos, from, to]
   )
 
-  // Filtrado período anterior
   const gastosAnt = useMemo(() => {
-    if (!from || !to) return []
-    const { from: pf, to: pt } = getPeriodoAnterior({ from, to })
-    return todosLosGastos.filter(g => g.fecha >= pf && g.fecha <= pt)
+    const ant = getPeriodoAnterior({ from, to })
+    return todosLosGastos.filter(g => g.fecha >= ant.from && g.fecha <= ant.to)
   }, [todosLosGastos, from, to])
 
-  const total    = gastos.reduce((s, g) => s + (g.monto || 0), 0)
-  const totalAnt = gastosAnt.reduce((s, g) => s + (g.monto || 0), 0)
+  const total    = useMemo(() => gastos.reduce((s, g) => s + (g.monto || 0), 0), [gastos])
+  const totalAnt = useMemo(() => gastosAnt.reduce((s, g) => s + (g.monto || 0), 0), [gastosAnt])
 
-  // ── Ingresos del período ────────────────────────────────────────────────────
-  const ingresosDelPeriodo = useMemo(() =>
-    todosLosIngresos.filter(i => (!from || i.fecha >= from) && (!to || i.fecha <= to)),
-    [todosLosIngresos, from, to]
-  )
-  const totalIngresos  = ingresosDelPeriodo.reduce((s,i) => s + (i.monto||0), 0)
-  const saldoDisp      = totalIngresos - total
-  const pctGastado     = totalIngresos > 0 ? Math.round(total / totalIngresos * 100) : null
-
-  // Gastos hormiga: gastos de monto pequeño (< 1% del total o < $2000), frecuentes
-  const HORMIGA_MAX = Math.max(2000, total * 0.01)
-  const gastosHormiga = useMemo(() => {
-    const pequeños = gastos.filter(g => g.monto > 0 && g.monto <= HORMIGA_MAX)
-    const totalHormiga = pequeños.reduce((s,g) => s + g.monto, 0)
-    return { count: pequeños.length, total: totalHormiga,
-      pct: total > 0 ? Math.round(totalHormiga/total*100) : 0 }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gastos, total])
-
-  const dias = useMemo(() => {
-    if (!from || !to) return uniq(gastos.map(g => g.fecha)).length || 1
-    const f = new Date(from + 'T00:00:00')
-    const t = new Date(to   + 'T00:00:00')
-    const hoy = new Date().toISOString().slice(0, 10)
-    return to >= hoy
-      ? (uniq(gastos.map(g => g.fecha)).length || 1)
-      : Math.round((t - f) / 86400000) + 1
-  }, [gastos, from, to])
-
-  const promDia    = total    / (dias || 1)
-  const promDiaAnt = totalAnt / (dias || 1)
+  const dias    = useMemo(() => { const d = new Date(to) - new Date(from); return Math.max(1, Math.round(d/86400000) + 1) }, [from, to])
+  const promDia = total / dias
+  const diasAnt = useMemo(() => { const ant = getPeriodoAnterior({from,to}); const d = new Date(ant.to)-new Date(ant.from); return Math.max(1,Math.round(d/86400000)+1) }, [from,to])
+  const promDiaAnt = totalAnt / diasAnt
 
   const byN1 = useMemo(() => {
-    const m = {}
-    gastos.forEach(g => { m[g.n1] = (m[g.n1] || 0) + g.monto })
-    return Object.entries(m)
-      .map(([name, value]) => ({ name, value, pct: total ? Math.round(value/total*100) : 0 }))
-      .sort((a,b) => b.value - a.value)
+    const map = {}
+    gastos.forEach(g => { map[g.n1] = (map[g.n1] || 0) + (g.monto || 0) })
+    const entries = Object.entries(map).sort((a,b) => b[1]-a[1])
+    return entries.map(([name, value]) => ({ name, value, pct: total > 0 ? Math.round(value/total*100) : 0 }))
   }, [gastos, total])
 
   const byN3 = useMemo(() => {
-    const m = {}
-    gastos.forEach(g => {
-      const k = [g.n2, g.n3, g.n4].filter(Boolean).join(' › ')
-      m[k] = (m[k] || 0) + g.monto
-    })
-    return Object.entries(m).map(([name,value]) => ({ name, value })).sort((a,b) => b.value - a.value).slice(0, 7)
+    const map = {}
+    gastos.forEach(g => { const k = g.n3 || g.n2 || g.n1; map[k] = (map[k]||0)+(g.monto||0) })
+    return Object.entries(map).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([name,value])=>({name,value}))
   }, [gastos])
 
   const topGasto = useMemo(() => {
-    const m = {}
+    const map = {}
     gastos.forEach(g => {
-      if (!g.n4) return
-      if (!m[g.n4]) m[g.n4] = { name: g.n4, cantidad: 0, monto: 0, unidad: g.unidad }
-      m[g.n4].cantidad += parseFloat(g.cantidad) || 0
-      m[g.n4].monto    += g.monto || 0
+      const k = g.n4 || g.n3 || g.n2 || g.n1
+      if (!map[k]) map[k] = { name:k, monto:0, count:0, subtitle: g.n1 }
+      map[k].monto += g.monto||0; map[k].count++
     })
-    return Object.values(m).sort((a,b) => b.monto - a.monto).slice(0, 6).map(x => ({
-      ...x,
-      subtitle: `${x.cantidad % 1 === 0 ? x.cantidad : x.cantidad.toFixed(2)} ${x.unidad || ''} · ${total > 0 ? (x.monto/total*100).toFixed(1) : 0}% del total`,
-    }))
-  }, [gastos, total])
+    return Object.values(map).sort((a,b)=>b.monto-a.monto).slice(0,8)
+      .map(x => ({ ...x, sublabel:`${x.count} compra${x.count!==1?'s':''}` }))
+  }, [gastos])
 
   const topCantidad = useMemo(() => {
-    const m = {}
-    gastos.forEach(g => {
-      if (!g.n4 || !g.cantidad) return
-      if (!m[g.n4]) m[g.n4] = { name: g.n4, cantidad: 0, monto: 0, unidad: g.unidad }
-      m[g.n4].cantidad += parseFloat(g.cantidad) || 0
-      m[g.n4].monto    += g.monto || 0
+    const map = {}
+    gastos.filter(g=>g.cantidad>0).forEach(g => {
+      const k = g.n4||g.n3||g.n2||g.n1
+      if (!map[k]) map[k] = { name:k, cantidad:0, count:0, subtitle:g.unidad||'unidad' }
+      map[k].cantidad += parseFloat(g.cantidad)||0; map[k].count++
     })
-    return Object.values(m).filter(x => x.cantidad > 0)
-      .sort((a,b) => b.cantidad - a.cantidad).slice(0, 6)
-      .map(x => ({
-        ...x,
-        subtitle: money(x.monto) + ' gastados',
-        sublabel: x.unidad || 'unid.',
-      }))
-  }, [gastos, fmtMoney])
+    return Object.values(map).sort((a,b)=>b.cantidad-a.cantidad).slice(0,8)
+  }, [gastos])
 
-  const periodoLabel = PERIODOS.find(p => p.id === periodo)?.label || 'Período'
+  const periodoLabel = useMemo(() => {
+    const p = PERIODOS.find(p => p.id === periodo)
+    return p ? p.label : `${from} – ${to}`
+  }, [periodo, from, to])
 
-  // ── Estado vacío global ──────────────────────────────────────────────────────
-  if (!todosLosGastos.length) return (
-    <div style={{ maxWidth: 600, margin: '0 auto', padding: '20px 0' }}>
-      <div style={{ textAlign: 'center', padding: '40px 20px 32px', background: 'var(--surface)', borderRadius: 20, boxShadow: 'var(--shadow)', marginBottom: 20 }}>
-        <IconDinero size={64} color="var(--accent)" style={{ marginBottom: 12 }} aria-hidden="true" />
-        <h2 style={{ color: 'var(--text-primary)', margin: '0 0 8px', fontWeight: 800 }}>¡Empezá a registrar!</h2>
-        <p style={{ color: 'var(--text-muted)', fontSize: 14, margin: 0, lineHeight: 1.6 }}>
-          Tu dashboard aparecerá aquí con gráficos y estadísticas<br />una vez que registres tu primer gasto.
-        </p>
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: 12, marginBottom: 20 }}>
-        {[
-          { Icon: IconRegistrar,   titulo: 'Registrar un gasto',    desc: 'Anotá tu primer gasto ahora', color: '#3b82f6', tab: 'registro'      },
-          { Icon: IconRecurrentes, titulo: 'Configurar recurrentes', desc: 'Automatizá gastos fijos',     color: '#d97706', tab: 'configuracion' },
-        ].map(({ Icon: Ic, titulo, desc, color, tab }) => (
-          <button key={tab} onClick={() => onNavigate?.(tab)}
-            style={{ padding: '20px', borderRadius: 16, border: `2px solid ${color}30`, background: `${color}08`, cursor: 'pointer', textAlign: 'left', display: 'flex', gap: 14, alignItems: 'center' }}>
-            <div style={{ width: 44, height: 44, borderRadius: 12, background: `${color}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <Ic size={22} color={color} aria-hidden="true" />
-            </div>
-            <div>
-              <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-primary)' }}>{titulo}</div>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{desc}</div>
-            </div>
-          </button>
-        ))}
-      </div>
-      <div style={{ background: 'var(--accent-light)', borderRadius: 12, padding: '14px 18px', border: '1px solid var(--accent)', display: 'flex', gap: 12 }}>
-        <IconTip size={20} color="var(--accent)" style={{ flexShrink: 0, marginTop: 1 }} aria-hidden="true" />
-        <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-          <b style={{ color: 'var(--accent)' }}>Tip:</b> Agregá la app a tu pantalla de inicio y usá el shortcut <b>Gasto rápido</b> para registrar en segundos.
-        </p>
-      </div>
-    </div>
+  // Ingresos y métricas
+  const totalIngresos = useMemo(() =>
+    ingresos.filter(i => i.fecha >= from && i.fecha <= to).reduce((s,i)=>s+(i.monto||0),0),
+    [ingresos, from, to]
   )
+  const saldoDisp  = totalIngresos - total
+  const pctGastado = totalIngresos > 0 ? Math.round(total/totalIngresos*100) : 0
+  const gastosHormiga = useMemo(() => {
+    const HORMIGA_MAX = Math.max(1500, total*0.008)
+    const h = gastos.filter(g=>g.monto>0&&g.monto<=HORMIGA_MAX)
+    const tot = h.reduce((s,g)=>s+g.monto,0)
+    return { count:h.length, total:tot, pct: total>0?Math.round(tot/total*100):0 }
+  }, [gastos, total])
 
-  const card  = { background: 'var(--surface)', borderRadius: 16, padding: 24, boxShadow: 'var(--shadow)', border: '1px solid var(--border)' }
-  const sTitle = { margin: '0 0 16px', fontSize: 12, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', display: 'flex', alignItems: 'center', gap: 6 }
+  const card   = { background:'var(--surface)', borderRadius:16, padding:'20px', border:'1px solid var(--border)', boxShadow:'0 2px 12px rgba(0,0,0,.06)' }
+  const sTitle = { margin:'0 0 16px', fontSize:13, fontWeight:800, color:'var(--text-secondary)', textTransform:'uppercase', letterSpacing:'0.07em', display:'flex', alignItems:'center', gap:6 }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+    <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
 
-      {/* Selector de período */}
-      <div style={{ ...card, padding: '16px 20px' }}>
-        <PeriodSelector periodo={periodo} setPeriodo={setPeriodo} from={from} setFrom={setFrom} to={to} setTo={setTo} />
+      {/* Selector período */}
+      <div style={card}>
+        <PeriodSelector periodo={periodo} setPeriodo={setPeriodo} from={from} to={to} setFrom={setFrom} setTo={setTo}/>
       </div>
 
-      {/* KPI principal — Total + Promedio/día */}
-      <div style={{ ...card, borderLeft: '4px solid var(--accent)', padding: '22px 26px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
-        <div>
-          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>
-            Total gastado — {periodoLabel}
-          </div>
-          <div style={{ fontSize: 32, fontWeight: 900, color: 'var(--accent)', lineHeight: 1 }}>
-            {money(total)}
-          </div>
-          <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
-            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-              Período anterior: {money(totalAnt)}
-            </span>
-            <DeltaBadge current={total} prev={totalAnt} />
+      {/* KPIs */}
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))', gap:16 }}>
+        <div style={{ ...card, borderTop:'4px solid var(--accent)' }}>
+          <div style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:6 }}>Total gastado</div>
+          <div style={{ fontSize:26, fontWeight:800, color:'var(--text-primary)', lineHeight:1 }}>{money(total)}</div>
+          <div style={{ marginTop:6, display:'flex', alignItems:'center' }}>
+            <span style={{ fontSize:11, color:'var(--text-muted)' }}>{periodoLabel}</span>
+            <DeltaBadge current={total} prev={totalAnt}/>
           </div>
         </div>
-        <div style={{ textAlign: 'right' }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>
+        <div style={{ ...card, borderTop:'4px solid #10b981' }}>
+          <div style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:6 }}>N° de gastos</div>
+          <div style={{ fontSize:26, fontWeight:800, color:'var(--text-primary)', lineHeight:1 }}>{gastos.length}</div>
+          <div style={{ marginTop:6 }}>
+            <span style={{ fontSize:11, color:'var(--text-muted)' }}>{periodoLabel}</span>
+          </div>
+        </div>
+        <div style={{ ...card, borderTop:'4px solid #f59e0b' }}>
+          <div style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:6 }}>Ticket promedio</div>
+          <div style={{ fontSize:26, fontWeight:800, color:'var(--text-primary)', lineHeight:1 }}>
+            {money(gastos.length > 0 ? total/gastos.length : 0)}
+          </div>
+        </div>
+        <div style={{ ...card, borderTop:'4px solid #8b5cf6' }}>
+          <div style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:6 }}>
             Promedio / día
           </div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)' }}>
+          <div style={{ fontSize:26, fontWeight:800, color:'var(--text-primary)', lineHeight:1 }}>
             {money(promDia)}
           </div>
-          <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
-            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{dias} día{dias !== 1 ? 's' : ''}</span>
+          <div style={{ marginTop:4, display:'flex', alignItems:'center', justifyContent:'flex-start', gap:6 }}>
+            <span style={{ fontSize:11, color:'var(--text-muted)' }}>{dias} día{dias !== 1 ? 's' : ''}</span>
             <DeltaBadge current={promDia} prev={promDiaAnt} />
           </div>
         </div>
@@ -370,50 +327,34 @@ export default function Dashboard({ gastos: todosLosGastos, onNavigate, alertas 
       {/* ── Panel Ingresos vs Gastos ── */}
       {totalIngresos > 0 && (
         <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))', gap:14 }}>
-          {/* Ingresos */}
           <div style={{ ...card, borderTop:'3px solid #22c55e', padding:'18px 20px' }}>
             <div style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:6 }}>Ingresos</div>
             <div style={{ fontSize:22, fontWeight:800, color:'#22c55e' }}>{money(totalIngresos)}</div>
             <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:3 }}>{periodoLabel}</div>
           </div>
-
-          {/* % Gastado */}
           <div style={{ ...card, borderTop:`3px solid ${pctGastado>90?'#ef4444':pctGastado>70?'#f59e0b':'#22c55e'}`, padding:'18px 20px' }}>
             <div style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:6 }}>% Gastado</div>
-            <div style={{ fontSize:22, fontWeight:800, color:pctGastado>90?'#ef4444':pctGastado>70?'#f59e0b':'#22c55e' }}>
-              {pctGastado}%
-            </div>
+            <div style={{ fontSize:22, fontWeight:800, color:pctGastado>90?'#ef4444':pctGastado>70?'#f59e0b':'#22c55e' }}>{pctGastado}%</div>
             <div style={{ marginTop:6, height:5, borderRadius:3, background:'var(--border)', overflow:'hidden' }}>
-              <div style={{ height:'100%', width:`${Math.min(pctGastado,100)}%`, borderRadius:3, transition:'width .5s',
-                background:pctGastado>90?'#ef4444':pctGastado>70?'#f59e0b':'#22c55e' }}/>
+              <div style={{ height:'100%', width:`${Math.min(pctGastado,100)}%`, borderRadius:3, transition:'width .5s', background:pctGastado>90?'#ef4444':pctGastado>70?'#f59e0b':'#22c55e' }}/>
             </div>
           </div>
-
-          {/* Saldo disponible */}
           <div style={{ ...card, borderTop:`3px solid ${saldoDisp>=0?'#3b82f6':'#ef4444'}`, padding:'18px 20px' }}>
             <div style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:6 }}>Saldo disponible</div>
-            <div style={{ fontSize:22, fontWeight:800, color:saldoDisp>=0?'#3b82f6':'#ef4444' }}>
-              {saldoDisp>=0?'+':''}{money(saldoDisp)}
-            </div>
-            <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:3 }}>
-              {saldoDisp>=0?'Superávit':'Déficit'} del período
-            </div>
+            <div style={{ fontSize:22, fontWeight:800, color:saldoDisp>=0?'#3b82f6':'#ef4444' }}>{saldoDisp>=0?'+':''}{money(saldoDisp)}</div>
+            <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:3 }}>{saldoDisp>=0?'Superávit':'Déficit'} del período</div>
           </div>
-
-          {/* Gastos hormiga */}
           {gastosHormiga.count > 0 && (
             <div style={{ ...card, borderTop:'3px solid #8b5cf6', padding:'18px 20px' }}>
               <div style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:6 }}>Gastos hormiga</div>
               <div style={{ fontSize:22, fontWeight:800, color:'#8b5cf6' }}>{money(gastosHormiga.total)}</div>
-              <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:3 }}>
-                {gastosHormiga.count} gastos pequeños · {gastosHormiga.pct}% del total
-              </div>
+              <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:3 }}>{gastosHormiga.count} gastos pequeños · {gastosHormiga.pct}% del total</div>
             </div>
           )}
         </div>
       )}
 
-      {/* ── Sin ingresos cargados — CTA ── */}
+      {/* CTA ingresos */}
       {totalIngresos === 0 && gastos.length > 0 && (
         <div style={{ ...card, background:'#eff6ff', border:'1px solid #bfdbfe', padding:'14px 20px',
           display:'flex', alignItems:'center', gap:14, cursor:'pointer' }}
@@ -426,7 +367,7 @@ export default function Dashboard({ gastos: todosLosGastos, onNavigate, alertas 
         </div>
       )}
 
-      {/* Sin datos en período */}
+      {/* Sin datos */}
       {gastos.length === 0 ? (
         <div style={{ ...card, textAlign: 'center', padding: '40px 20px', color: 'var(--text-muted)' }}>
           <IconCalendario size={40} color="var(--text-muted)" style={{ marginBottom: 10 }} aria-hidden="true" />
@@ -435,7 +376,6 @@ export default function Dashboard({ gastos: todosLosGastos, onNavigate, alertas 
         </div>
       ) : (<>
 
-        {/* Fila: Doughnut + Top Subcategorías */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))', gap: 20 }}>
           <div style={card}>
             <h3 style={sTitle}><IconEtiquetas size={14} aria-hidden="true" /> Distribución por Tipo</h3>
@@ -467,28 +407,14 @@ export default function Dashboard({ gastos: todosLosGastos, onNavigate, alertas 
           </div>
         </div>
 
-        {/* Fila: Top por Gasto + Top por Cantidad */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))', gap: 20 }}>
           <div style={card}>
             <h3 style={sTitle}><IconTrofeo size={14} weight="fill" color="#f59e0b" aria-hidden="true" /> Top Ítems por Gasto</h3>
-            <ItemList
-              items={topGasto}
-              valueKey="monto"
-              fmtValue={money}
-              paletteOffset={0}
-              emptyMsg="Sin ítems registrados en el período."
-            />
+            <ItemList items={topGasto} valueKey="monto" fmtValue={money} paletteOffset={0} emptyMsg="Sin ítems registrados en el período." />
           </div>
-
           <div style={card}>
             <h3 style={sTitle}><IconDinero size={14} aria-hidden="true" /> Top Ítems por Cantidad</h3>
-            <ItemList
-              items={topCantidad}
-              valueKey="cantidad"
-              fmtValue={v => v % 1 === 0 ? String(v) : v.toFixed(2)}
-              paletteOffset={3}
-              emptyMsg="Registrá cantidad en tus gastos para ver este ranking."
-            />
+            <ItemList items={topCantidad} valueKey="cantidad" fmtValue={v => v % 1 === 0 ? String(v) : v.toFixed(2)} paletteOffset={3} emptyMsg="Registrá cantidad en tus gastos para ver este ranking." />
           </div>
         </div>
 

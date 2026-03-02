@@ -80,22 +80,15 @@ function ComprasMayor({ gastos, fmtMoney }) {
           border:'1px solid var(--border)' }}>
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:8, flexWrap:'wrap' }}>
             <div>
-              <div style={{ fontSize:14, fontWeight:700, color:'var(--text-primary)', marginBottom:3 }}>
-                {s.nombre}
-              </div>
-              <div style={{ fontSize:12, color:'var(--text-muted)' }}>
-                Lo comprás {s.frecuenciaMes}x/mes · presente en {s.mesesPresente} meses
-              </div>
+              <div style={{ fontSize:14, fontWeight:700, color:'var(--text-primary)', marginBottom:3 }}>{s.nombre}</div>
+              <div style={{ fontSize:12, color:'var(--text-muted)' }}>Lo comprás {s.frecuenciaMes}x/mes · presente en {s.mesesPresente} meses</div>
             </div>
             <div style={{ textAlign:'right', flexShrink:0 }}>
               <div style={{ fontSize:11, color:'var(--text-muted)' }}>Ahorro estimado</div>
-              <div style={{ fontSize:16, fontWeight:800, color:'#22c55e' }}>
-                {money(s.ahorroEstimado, fmtMoney)}
-              </div>
+              <div style={{ fontSize:16, fontWeight:800, color:'#22c55e' }}>{money(s.ahorroEstimado, fmtMoney)}</div>
             </div>
           </div>
-          <div style={{ marginTop:10, padding:'10px 12px', background:'#f0fdf4',
-            border:'1px solid #bbf7d0', borderRadius:8 }}>
+          <div style={{ marginTop:10, padding:'10px 12px', background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:8 }}>
             <div style={{ fontSize:12, fontWeight:700, color:'#166534' }}>💡 Sugerencia</div>
             <div style={{ fontSize:12, color:'#15803d', marginTop:3 }}>
               Comprá {s.cantidadSugerida} {s.unidad} para 3 meses
@@ -120,34 +113,21 @@ function Sugerencias({ gastos, ingresos, fmtMoney }) {
 
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
-      {/* Proyección */}
       <div style={{ background:'var(--surface2)', borderRadius:12, padding:'14px 16px',
         border:'1px solid var(--border)', display:'flex', gap:16, flexWrap:'wrap' }}>
         <div style={{ flex:1, minWidth:120 }}>
-          <div style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'.05em', marginBottom:4 }}>
-            Proyección al cierre
-          </div>
-          <div style={{ fontSize:22, fontWeight:800, color:'#6366f1' }}>
-            {money(proyeccion, fmtMoney)}
-          </div>
+          <div style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'.05em', marginBottom:4 }}>Proyección al cierre</div>
+          <div style={{ fontSize:22, fontWeight:800, color:'#6366f1' }}>{money(proyeccion, fmtMoney)}</div>
         </div>
         <div style={{ flex:1, minWidth:120 }}>
-          <div style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'.05em', marginBottom:4 }}>
-            Ritmo diario
-          </div>
-          <div style={{ fontSize:22, fontWeight:800, color:'var(--text-primary)' }}>
-            {money(promDia, fmtMoney)}
-          </div>
+          <div style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'.05em', marginBottom:4 }}>Ritmo diario</div>
+          <div style={{ fontSize:22, fontWeight:800, color:'var(--text-primary)' }}>{money(promDia, fmtMoney)}</div>
         </div>
         <div style={{ flex:1, minWidth:80 }}>
-          <div style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'.05em', marginBottom:4 }}>
-            Días restantes
-          </div>
+          <div style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'.05em', marginBottom:4 }}>Días restantes</div>
           <div style={{ fontSize:22, fontWeight:800, color:'var(--text-primary)' }}>{diasRestantes}</div>
         </div>
       </div>
-
-      {/* Sugerencias */}
       {!sugs.length ? (
         <p style={{ color:'var(--text-muted)', fontSize:13, margin:0 }}>
           Necesitás al menos 2 meses de datos para generar sugerencias personalizadas.
@@ -175,25 +155,63 @@ function Sugerencias({ gastos, ingresos, fmtMoney }) {
   )
 }
 
-// ── Chat ──────────────────────────────────────────────────────────────────────
+// ── Chat con input de texto libre ─────────────────────────────────────────────
 function Chat({ gastos, ingresos }) {
   const [mensajes, setMensajes] = useState([
-    { rol:'asesor', texto:'¡Hola! Soy tu asesor financiero. Seleccioná una pregunta o escribí la tuya.' }
+    { rol:'asesor', texto:'¡Hola! Soy tu asesor financiero. Seleccioná una pregunta rápida o escribí la tuya.' }
   ])
   const [escribiendo, setEscribiendo] = useState(false)
-  const bottomRef = useRef(null)
+  const [inputTexto, setInputTexto]   = useState('')
+  const bottomRef  = useRef(null)
+  const inputRef   = useRef(null)
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior:'smooth' }) }, [mensajes])
 
   const responder = (preguntaId, labelTexto) => {
-    const textoUsuario = labelTexto
-    setMensajes(prev => [...prev, { rol:'usuario', texto:textoUsuario }])
+    setMensajes(prev => [...prev, { rol:'usuario', texto:labelTexto }])
     setEscribiendo(true)
     setTimeout(() => {
       const respuesta = responderPregunta(preguntaId, gastos, ingresos)
       setMensajes(prev => [...prev, { rol:'asesor', texto:respuesta }])
       setEscribiendo(false)
     }, 500)
+  }
+
+  // Preguntas libres: mapear palabras clave a preguntaId
+  const resolverTextoLibre = (texto) => {
+    const t = texto.toLowerCase()
+    if (t.includes('más') || t.includes('gast') || t.includes('top') || t.includes('mayor'))
+      return 'donde_gasto_mas'
+    if (t.includes('voy') || t.includes('mes') || t.includes('cómo') || t.includes('como'))
+      return 'como_voy_mes'
+    if (t.includes('anterior') || t.includes('pasado') || t.includes('mejor') || t.includes('peor') || t.includes('compar'))
+      return 'vs_mes_anterior'
+    if (t.includes('ahorr') || t.includes('sobr') || t.includes('disponible') || t.includes('guardar'))
+      return 'puedo_ahorrar'
+    if (t.includes('reduc') || t.includes('recortar') || t.includes('bajar') || t.includes('menos'))
+      return 'que_puedo_reducir'
+    return null
+  }
+
+  const enviarTexto = () => {
+    const txt = inputTexto.trim()
+    if (!txt || escribiendo) return
+    setInputTexto('')
+    const id = resolverTextoLibre(txt)
+    if (id) {
+      responder(id, txt)
+    } else {
+      setMensajes(prev => [...prev, { rol:'usuario', texto:txt }])
+      setEscribiendo(true)
+      setTimeout(() => {
+        setMensajes(prev => [...prev, {
+          rol:'asesor',
+          texto:'No encontré una respuesta específica para esa pregunta. Probá con alguna de las preguntas rápidas de abajo, o preguntame sobre: gastos del mes, comparativa, ahorro o en qué reducir.'
+        }])
+        setEscribiendo(false)
+      }, 400)
+    }
+    setTimeout(() => inputRef.current?.focus(), 100)
   }
 
   const bubble = (rol) => ({
@@ -208,7 +226,7 @@ function Chat({ gastos, ingresos }) {
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:0 }}>
       {/* Mensajes */}
-      <div style={{ minHeight:180, maxHeight:340, overflowY:'auto', display:'flex',
+      <div style={{ minHeight:180, maxHeight:320, overflowY:'auto', display:'flex',
         flexDirection:'column', gap:10, padding:'4px 0 12px' }}>
         {mensajes.map((m,i) => (
           <div key={i} style={{ display:'flex', justifyContent:m.rol==='usuario'?'flex-end':'flex-start' }}>
@@ -217,14 +235,36 @@ function Chat({ gastos, ingresos }) {
         ))}
         {escribiendo && (
           <div style={{ display:'flex', justifyContent:'flex-start' }}>
-            <div style={{ ...bubble('asesor'), color:'var(--text-muted)' }}>Analizando tu data…</div>
+            <div style={{ ...bubble('asesor'), color:'var(--text-muted)' }}>Analizando…</div>
           </div>
         )}
         <div ref={bottomRef}/>
       </div>
 
+      {/* Input de texto libre */}
+      <div style={{ borderTop:'1px solid var(--border)', paddingTop:12, display:'flex', gap:8 }}>
+        <input
+          ref={inputRef}
+          value={inputTexto}
+          onChange={e => setInputTexto(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && !e.shiftKey && enviarTexto()}
+          placeholder="Escribí tu pregunta… Ej: ¿En qué gasto más?"
+          disabled={escribiendo}
+          style={{ flex:1, padding:'9px 14px', borderRadius:10, border:'1.5px solid var(--border)',
+            background:'var(--surface2)', color:'var(--text-primary)', fontSize:13,
+            fontFamily:'inherit', outline:'none',
+            opacity: escribiendo ? .6 : 1 }}/>
+        <button onClick={enviarTexto} disabled={!inputTexto.trim() || escribiendo}
+          style={{ padding:'9px 16px', borderRadius:10, border:'none', cursor:'pointer',
+            background: inputTexto.trim() && !escribiendo ? 'var(--accent)' : 'var(--border)',
+            color: inputTexto.trim() && !escribiendo ? '#fff' : 'var(--text-muted)',
+            fontWeight:700, fontSize:13, transition:'all .15s', whiteSpace:'nowrap' }}>
+          Enviar
+        </button>
+      </div>
+
       {/* Preguntas rápidas */}
-      <div style={{ borderTop:'1px solid var(--border)', paddingTop:12 }}>
+      <div style={{ paddingTop:12 }}>
         <div style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', marginBottom:8,
           textTransform:'uppercase', letterSpacing:'.05em' }}>Preguntas rápidas</div>
         <div style={{ display:'flex', flexWrap:'wrap', gap:7 }}>
@@ -253,18 +293,16 @@ export default function AsesorPage({ gastos = [] }) {
   const [seccion, setSeccion] = useState('sugerencias')
 
   const TABS = [
-    { id:'sugerencias', label:'Sugerencias',    emoji:'💡' },
-    { id:'top',         label:'Top gastos',     emoji:'🏆' },
+    { id:'sugerencias', label:'Sugerencias',     emoji:'💡' },
+    { id:'top',         label:'Top gastos',      emoji:'🏆' },
     { id:'mayor',       label:'Compra por mayor',emoji:'🛒' },
-    { id:'chat',        label:'Preguntar',       emoji:'💬' },
+    { id:'chat',        label:'Preguntar',        emoji:'💬' },
   ]
 
   if (!gastos.length) return (
     <div style={{ maxWidth:700, margin:'0 auto', textAlign:'center', padding:'60px 20px' }}>
       <div style={{ fontSize:48, marginBottom:16 }}>🤖</div>
-      <h2 style={{ fontSize:20, fontWeight:800, color:'var(--text-primary)', margin:'0 0 8px' }}>
-        Asesor Virtual
-      </h2>
+      <h2 style={{ fontSize:20, fontWeight:800, color:'var(--text-primary)', margin:'0 0 8px' }}>Asesor Virtual</h2>
       <p style={{ color:'var(--text-muted)', fontSize:14 }}>
         Registrá algunos gastos para que el asesor pueda analizar tus patrones y darte sugerencias personalizadas.
       </p>
@@ -273,10 +311,8 @@ export default function AsesorPage({ gastos = [] }) {
 
   return (
     <div style={{ maxWidth:780, margin:'0 auto', paddingBottom:40 }}>
-      {/* Header */}
       <div style={{ marginBottom:20 }}>
-        <h2 style={{ margin:'0 0 4px', fontSize:20, fontWeight:800, color:'var(--text-primary)',
-          display:'flex', alignItems:'center', gap:8 }}>
+        <h2 style={{ margin:'0 0 4px', fontSize:20, fontWeight:800, color:'var(--text-primary)', display:'flex', alignItems:'center', gap:8 }}>
           🤖 Asesor Virtual
         </h2>
         <p style={{ margin:0, fontSize:13, color:'var(--text-muted)' }}>
@@ -284,7 +320,6 @@ export default function AsesorPage({ gastos = [] }) {
         </p>
       </div>
 
-      {/* Tabs */}
       <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:20 }}>
         {TABS.map(t => (
           <button key={t.id} onClick={() => setSeccion(t.id)}
@@ -299,7 +334,6 @@ export default function AsesorPage({ gastos = [] }) {
         ))}
       </div>
 
-      {/* Contenido */}
       {seccion === 'sugerencias' && (
         <Card title="Sugerencias de ahorro" emoji="💡" color="#f59e0b">
           <Sugerencias gastos={gastos} ingresos={ingresos} fmtMoney={fmtMoney}/>
