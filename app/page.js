@@ -10,7 +10,7 @@ import { useAlertas } from '../lib/useAlertas'
 import { getPeriodo } from '../lib/constants'
 import {
   IconDashboard, IconRegistrar, IconListado, IconConfig,
-  IconCerrar, IconSpinner, IconSalir, IconBilletera, IconCheck, IconDinero,
+  IconCerrar, IconSpinner, IconSalir, IconBilletera, IconCheck, IconDinero, IconTip,
 } from '../lib/icons'
 
 function Spinner({ label = 'Cargando…' }) {
@@ -27,6 +27,7 @@ const Dashboard        = dynamic(() => import('../components/Dashboard'),       
 const ExpenseForm      = dynamic(() => import('../components/ExpenseForm'),      { ssr: false, loading: () => <Spinner label="Cargando formulario…"    /> })
 const ListView         = dynamic(() => import('../components/ListView'),         { ssr: false, loading: () => <Spinner label="Cargando listado…"       /> })
 const IngresosPage     = dynamic(() => import('../components/IngresosPage'),     { ssr: false, loading: () => <Spinner label="Cargando ingresos…"      /> })
+const AsesorPage       = dynamic(() => import('../components/AsesorPage'),       { ssr: false, loading: () => <Spinner label="Cargando asesor…"        /> })
 const ConfigPage       = dynamic(() => import('../components/ConfigPage'),       { ssr: false, loading: () => <Spinner label="Cargando configuración…" /> })
 const NotificationsBell = dynamic(() => import('../components/NotificationsBell'), { ssr: false })
 const Onboarding       = dynamic(() => import('../components/Onboarding'),      { ssr: false })
@@ -37,6 +38,7 @@ const NAV_TABS = [
   { id: 'registro',      labelKey: 'nav.registro',     fallback: 'Registrar', Icon: IconRegistrar },
   { id: 'listado',       labelKey: 'nav.listado',      fallback: 'Listado',   Icon: IconListado   },
   { id: 'ingresos',      labelKey: 'nav.ingresos',     fallback: 'Ingresos',  Icon: IconDinero    },
+  { id: 'asesor',        labelKey: 'nav.asesor',       fallback: 'Asesor',    Icon: IconTip       },
   { id: 'configuracion', labelKey: 'nav.configuracion', fallback: 'Config',   Icon: IconConfig    },
 ]
 
@@ -222,6 +224,7 @@ export default function Home() {
         {tab === 'registro'      && <ExpenseForm key={editTarget?.id || 'new'} initial={editTarget} onSave={handleSave} onCancel={() => { setEditTarget(null); setTab('listado') }} />}
         {tab === 'listado'       && <ListView   gastos={gastos} onDelete={handleDelete} onEdit={g => { setEditTarget(g); setTab('registro') }} />}
         {tab === 'ingresos'      && <IngresosPage />}
+        {tab === 'asesor'        && <AsesorPage gastos={gastos} />}
         {tab === 'configuracion' && <ConfigPage />}
       </main>
     </div>
