@@ -649,7 +649,7 @@ export default function CatalogManager() {
 
             {/* Col 1 — N1 */}
             <McCol title={COL_LABELS[0]} idx={0} mobileIdx={mc}
-              onAdd={addN1} addPh="Nombre del tipo…" addIcon addDis={false} units={units}}>
+              onAdd={addN1} addPh="Nombre del tipo…" addIcon addDis={false} units={units}>
               {n1List.length===0
                 ? <Empty label="Sin tipos todavía" cta="Usá ＋ para agregar"/>
                 : n1List.map(n1=>(
@@ -664,7 +664,7 @@ export default function CatalogManager() {
 
             {/* Col 2 — N2 */}
             <McCol title={COL_LABELS[1]} dot={selColor?.bg} idx={1} mobileIdx={mc}
-              onAdd={s1id?addN2:undefined} addPh="Nombre del área…" addIcon addDis={!s1id} units={units}}>
+              onAdd={s1id?addN2:undefined} addPh="Nombre del área…" addIcon addDis={!s1id} units={units}>
               {!s1 ? <Empty label="Seleccioná un Tipo" cta="← izquierda"/>
               : n2List.length===0 ? <Empty label="Sin áreas" cta="Opcional — podés agregar ítems directo al Tipo"/>
               : n2List.map(n2=>(
@@ -679,7 +679,7 @@ export default function CatalogManager() {
 
             {/* Col 3 — N3 */}
             <McCol title={COL_LABELS[2]} idx={2} mobileIdx={mc}
-              onAdd={s2id?addN3:undefined} addPh="Nombre de subcategoría…" addDis={!s2id} units={units}}>
+              onAdd={s2id?addN3:undefined} addPh="Nombre de subcategoría…" addDis={!s2id} units={units}>
               {!s2 ? <Empty label="Seleccioná un Área" cta="← anterior"/>
               : n3List.length===0 ? <Empty label="Sin subcategorías" cta="Opcional — podés agregar ítems al Área"/>
               : n3List.map(n3=>(
