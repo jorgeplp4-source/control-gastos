@@ -139,15 +139,27 @@ function ItemList({ items, valueKey, valueLabel, fmtValue, paletteOffset = 0, em
 
 // ── Banners de alerta — con botón para cerrar ─────────────────────────────────
 function AlertaBanners({ alertas, onNavigate }) {
-  const [cerradas, setCerradas] = useState(new Set())
+  const [cerradas, setCerradas] = useState(() => {
+    try {
+      const stored = sessionStorage.getItem('alertas_cerradas')
+      return new Set(stored ? JSON.parse(stored) : [])
+    } catch { return new Set() }
+  })
+
   if (!alertas || alertas.length === 0) return null
+
+  const cerrar = (id) => {
+    setCerradas(prev => {
+      const next = new Set([...prev, id])
+      try { sessionStorage.setItem('alertas_cerradas', JSON.stringify([...next])) } catch {}
+      return next
+    })
+  }
 
   const criticas    = alertas.filter(a => a.severidad === 'critica'     && !cerradas.has(a.id))
   const advertencias= alertas.filter(a => a.severidad === 'advertencia' && !cerradas.has(a.id))
   const mostrar     = [...criticas, ...advertencias].slice(0, 3)
   if (!mostrar.length) return null
-
-  const cerrar = (id) => setCerradas(prev => new Set([...prev, id]))
 
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
