@@ -326,123 +326,174 @@ function ColHeader({ col, sortField, sortDir, onSort, isDragOver, onDragStart, o
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 // ── Panel de gastos pendientes de revisión ────────────────────────────────────
-function PendientesPanel({ gastos, onEdit, onDelete, onConfirm }) {
+function PendientesPanel({ gastos, onDelete, onConfirm }) {
   const pendientes = gastos.filter(g => g.pendiente_revision)
   const { categories } = useCategories()
-  const [editId,    setEditId]    = useState(null)
-  const [editData,  setEditData]  = useState({})
-  const [saving,    setSaving]    = useState(false)
+  const UNIT_OPTS = ['unidad','kg','gr','litro','ml','paquete','caja','docena','metro','garrafa','bolsa','porcion','rollo']
+  const [editId,     setEditId]     = useState(null)
+  const [editData,   setEditData]   = useState({})
+  const [agregarCat, setAgregarCat] = useState(false)
+  const [saving,     setSaving]     = useState(false)
 
   const n1Opts = useMemo(() => {
     const seen = new Set()
     return categories.filter(r => r.n1 && !seen.has(r.n1) && seen.add(r.n1)).map(r => r.n1).sort()
   }, [categories])
 
+  const n2Opts = useMemo(() => {
+    if (!editData.n1) return []
+    const seen = new Set()
+    return categories.filter(r => r.n1 === editData.n1 && r.n2 && !seen.has(r.n2) && seen.add(r.n2)).map(r => r.n2).sort()
+  }, [categories, editData.n1])
+
+  const n3Opts = useMemo(() => {
+    if (!editData.n1 || !editData.n2) return []
+    const seen = new Set()
+    return categories.filter(r => r.n1 === editData.n1 && r.n2 === editData.n2 && r.n3 && !seen.has(r.n3) && seen.add(r.n3)).map(r => r.n3).sort()
+  }, [categories, editData.n1, editData.n2])
+
   if (!pendientes.length) return null
 
   const startEdit = (g) => {
     setEditId(g.id)
-    setEditData({ n4: g.n4, n1: g.n1||'', n2: g.n2||'', n3: g.n3||'', monto: g.monto, cantidad: g.cantidad||1, unidad: g.unidad||'unidad' })
+    setEditData({ n4: g.n4||'', n1: g.n1||'', n2: g.n2||'', n3: g.n3||'', monto: g.monto||0, cantidad: g.cantidad||1, unidad: g.unidad||'unidad' })
+    setAgregarCat(false)
   }
 
   const handleConfirm = async (g) => {
+    const data = editId === g.id ? editData : { n4: g.n4, n1: g.n1, n2: g.n2, n3: g.n3, monto: g.monto, cantidad: g.cantidad, unidad: g.unidad }
+    if (!data.n4.trim()) return
     setSaving(true)
-    const updates = editId === g.id ? { ...editData, pendiente_revision: false } : { pendiente_revision: false }
-    await fetch('/api/gastos', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: g.id, ...updates }),
-    })
-    onConfirm?.()
-    setEditId(null)
-    setSaving(false)
+    try {
+      await fetch('/api/gastos', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: g.id, ...data, pendiente_revision: false }),
+      })
+      if (agregarCat && data.n4.trim() && data.n1) {
+        await fetch('/api/items', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ nombre: data.n4.trim(), n1: data.n1, n2: data.n2||null, n3: data.n3||null, unidad_default: data.unidad||'unidad' }),
+        })
+      }
+      onConfirm?.()
+      setEditId(null)
+    } finally { setSaving(false) }
   }
 
-  const inp = { padding:'6px 10px', border:'1.5px solid var(--border)', borderRadius:8,
-    fontSize:12, background:'var(--surface)', color:'var(--text-primary)',
-    fontFamily:'inherit', outline:'none', width:'100%', boxSizing:'border-box' }
-  const sel = { ...inp, cursor:'pointer' }
+  const inp = { padding:'7px 10px', border:'1.5px solid var(--border)', borderRadius:8, fontSize:12, background:'var(--surface)', color:'var(--text-primary)', fontFamily:'inherit', outline:'none', width:'100%', boxSizing:'border-box' }
+  const sel = { ...inp, cursor:'pointer', appearance:'none', backgroundImage:"url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2394a3b8' d='M6 8L1 3h10z'/%3E%3C/svg%3E\")", backgroundRepeat:'no-repeat', backgroundPosition:'right 8px center', paddingRight:24 }
+  const lbl = { fontSize:10, fontWeight:700, color:'var(--text-muted)', display:'block', marginBottom:3, textTransform:'uppercase', letterSpacing:'.04em' }
 
   return (
     <div style={{ background:'#fff7ed', border:'2px solid #fed7aa', borderRadius:14, overflow:'hidden', marginBottom:4 }}>
-      {/* Header */}
-      <div style={{ padding:'10px 16px', background:'#ffedd5', borderBottom:'1px solid #fed7aa',
-        display:'flex', alignItems:'center', gap:8 }}>
-        <span style={{ fontSize:18 }}>🔍</span>
+      <div style={{ padding:'10px 16px', background:'#ffedd5', borderBottom:'1px solid #fed7aa', display:'flex', alignItems:'center', gap:8 }}>
+        <span style={{ fontSize:18 }}>SEARCH_ICON</span>
         <div style={{ flex:1 }}>
           <div style={{ fontSize:13, fontWeight:800, color:'#c2410c' }}>
-            {pendientes.length} gasto{pendientes.length !== 1 ? 's' : ''} pendiente{pendientes.length !== 1 ? 's' : ''} de revisión
+            {pendientes.length} gasto{pendientes.length !== 1 ? 's' : ''} pendiente{pendientes.length !== 1 ? 's' : ''} de revision
           </div>
-          <div style={{ fontSize:11, color:'#ea580c' }}>
-            Registrados por voz · ítem no encontrado en el catálogo
-          </div>
+          <div style={{ fontSize:11, color:'#ea580c' }}>Registrados por voz - item no reconocido en el catalogo</div>
         </div>
       </div>
 
-      {/* Lista */}
       <div style={{ display:'flex', flexDirection:'column', gap:0 }}>
         {pendientes.map((g, i) => (
           <div key={g.id} style={{ borderBottom: i < pendientes.length-1 ? '1px solid #fed7aa' : 'none' }}>
             {editId === g.id ? (
-              /* ── Modo edición ── */
-              <div style={{ padding:'14px 16px', background:'#fff', display:'flex', flexDirection:'column', gap:10 }}>
-                <div style={{ fontSize:11, fontWeight:700, color:'#c2410c', textTransform:'uppercase', letterSpacing:'.05em' }}>
-                  Editando gasto · {g.transcripcion_voz && <span style={{ fontWeight:400, color:'#94a3b8' }}>Escuché: "{g.transcripcion_voz}"</span>}
-                </div>
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+              <div style={{ padding:'16px', background:'#fffbf5', display:'flex', flexDirection:'column', gap:12 }}>
+                {g.transcripcion_voz && (
+                  <div style={{ fontSize:11, padding:'6px 10px', background:'#fff7ed', borderRadius:7, color:'#92400e', borderLeft:'3px solid #fb923c' }}>
+                    Escuche: <strong>"{g.transcripcion_voz}"</strong>
+                  </div>
+                )}
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
                   <div style={{ gridColumn:'1/-1' }}>
-                    <label style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', display:'block', marginBottom:3 }}>Nombre del ítem</label>
-                    <input value={editData.n4} onChange={e => setEditData(p=>({...p, n4:e.target.value}))} style={inp}/>
+                    <label style={lbl}>Nombre del item *</label>
+                    <input value={editData.n4} onChange={e => setEditData(p=>({...p, n4:e.target.value}))} style={inp} placeholder="Nombre corregido..."/>
                   </div>
                   <div>
-                    <label style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', display:'block', marginBottom:3 }}>Tipo (N1)</label>
+                    <label style={lbl}>Monto *</label>
+                    <input type="number" value={editData.monto} onChange={e => setEditData(p=>({...p, monto:parseFloat(e.target.value)||0}))} style={inp}/>
+                  </div>
+                  <div>
+                    <label style={lbl}>Cantidad</label>
+                    <input type="number" min="0.01" step="0.01" value={editData.cantidad} onChange={e => setEditData(p=>({...p, cantidad:parseFloat(e.target.value)||1}))} style={inp}/>
+                  </div>
+                  <div>
+                    <label style={lbl}>Tipo N1 *</label>
                     <select value={editData.n1} onChange={e => setEditData(p=>({...p, n1:e.target.value, n2:'', n3:''}))} style={sel}>
                       <option value="">Sin definir</option>
                       {n1Opts.map(o => <option key={o} value={o}>{o}</option>)}
                     </select>
                   </div>
                   <div>
-                    <label style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', display:'block', marginBottom:3 }}>Monto</label>
-                    <input type="number" value={editData.monto} onChange={e => setEditData(p=>({...p, monto:parseFloat(e.target.value)||0}))} style={inp}/>
+                    <label style={lbl}>Area N2</label>
+                    <select value={editData.n2} onChange={e => setEditData(p=>({...p, n2:e.target.value, n3:''}))} style={sel} disabled={!editData.n1}>
+                      <option value="">Sin area</option>
+                      {n2Opts.map(o => <option key={o} value={o}>{o}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={lbl}>Subcategoria N3</label>
+                    <select value={editData.n3} onChange={e => setEditData(p=>({...p, n3:e.target.value}))} style={sel} disabled={!editData.n2}>
+                      <option value="">Sin subcategoria</option>
+                      {n3Opts.map(o => <option key={o} value={o}>{o}</option>)}
+                    </select>
                   </div>
                 </div>
-                <div style={{ display:'flex', gap:7, justifyContent:'flex-end' }}>
-                  <button onClick={() => setEditId(null)}
-                    style={{ padding:'6px 14px', borderRadius:8, border:'1.5px solid var(--border)', background:'var(--surface2)', color:'var(--text-muted)', fontSize:12, fontWeight:600, cursor:'pointer' }}>
-                    Cancelar
-                  </button>
-                  <button onClick={() => onDelete(g.id)}
-                    style={{ padding:'6px 14px', borderRadius:8, border:'none', background:'#fee2e2', color:'#ef4444', fontSize:12, fontWeight:700, cursor:'pointer' }}>
-                    Eliminar
-                  </button>
-                  <button onClick={() => handleConfirm(g)} disabled={saving || !editData.n4.trim()}
-                    style={{ padding:'6px 16px', borderRadius:8, border:'none',
-                      background: editData.n4.trim() ? '#22c55e' : 'var(--border)',
-                      color: editData.n4.trim() ? '#fff' : 'var(--text-muted)',
-                      fontSize:12, fontWeight:800, cursor:'pointer' }}>
-                    {saving ? '…' : '✓ Confirmar'}
+
+                <div style={{ borderTop:'1px dashed #fed7aa', paddingTop:12 }}>
+                  <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer', userSelect:'none' }}>
+                    <div onClick={() => setAgregarCat(p => !p)}
+                      style={{ width:18, height:18, borderRadius:5, border:`2px solid ${agregarCat ? '#22c55e' : 'var(--border)'}`, background: agregarCat ? '#22c55e' : 'transparent', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, transition:'all .12s' }}>
+                      {agregarCat && <span style={{ color:'#fff', fontSize:11, fontWeight:900, lineHeight:1 }}>v</span>}
+                    </div>
+                    <span style={{ fontSize:12, fontWeight:600, color:'var(--text-primary)' }}>
+                      Agregar este item al catalogo para futuros registros por voz
+                    </span>
+                  </label>
+
+                  {agregarCat && (
+                    <div style={{ marginTop:10, padding:'12px', background:'#f0fdf4', borderRadius:9, border:'1px solid #bbf7d0', display:'flex', flexDirection:'column', gap:8 }}>
+                      <div style={{ fontSize:11, fontWeight:700, color:'#15803d' }}>Datos para el catalogo</div>
+                      <div>
+                        <label style={{ ...lbl, color:'#15803d' }}>Unidad por defecto</label>
+                        <select value={editData.unidad} onChange={e => setEditData(p=>({...p, unidad:e.target.value}))} style={{ ...sel, borderColor:'#86efac' }}>
+                          {UNIT_OPTS.map(u => <option key={u} value={u}>{u}</option>)}
+                        </select>
+                      </div>
+                      <div style={{ fontSize:11, color:'#16a34a', lineHeight:1.6, padding:'6px 10px', background:'#dcfce7', borderRadius:6 }}>
+                        Guardando: <strong>{editData.n4||'(sin nombre)'}</strong>
+                        {editData.n1 && <span> en <strong>{editData.n1}{editData.n2 ? ' > '+editData.n2 : ''}{editData.n3 ? ' > '+editData.n3 : ''}</strong></span>}
+                        <span> - unidad: <strong>{editData.unidad||'unidad'}</strong></span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ display:'flex', gap:8, justifyContent:'flex-end', flexWrap:'wrap' }}>
+                  <button onClick={() => setEditId(null)} style={{ padding:'7px 16px', borderRadius:8, border:'1.5px solid var(--border)', background:'var(--surface2)', color:'var(--text-muted)', fontSize:12, fontWeight:600, cursor:'pointer' }}>Cancelar</button>
+                  <button onClick={() => onDelete(g.id)} style={{ padding:'7px 16px', borderRadius:8, border:'none', background:'#fee2e2', color:'#ef4444', fontSize:12, fontWeight:700, cursor:'pointer' }}>Eliminar</button>
+                  <button onClick={() => handleConfirm(g)} disabled={saving || !editData.n4.trim() || !editData.n1}
+                    style={{ padding:'7px 20px', borderRadius:8, border:'none', background:(editData.n4.trim()&&editData.n1)?'#22c55e':'var(--border)', color:(editData.n4.trim()&&editData.n1)?'#fff':'var(--text-muted)', fontSize:12, fontWeight:800, cursor:'pointer' }}>
+                    {saving ? 'Guardando...' : agregarCat ? 'Confirmar y agregar al catalogo' : 'Confirmar gasto'}
                   </button>
                 </div>
               </div>
             ) : (
-              /* ── Modo vista ── */
               <div style={{ padding:'11px 16px', display:'flex', alignItems:'center', gap:12 }}>
-                <span style={{ fontSize:16, flexShrink:0 }}>⚠️</span>
+                <span style={{ fontSize:16, flexShrink:0 }}>WARNING</span>
                 <div style={{ flex:1, minWidth:0 }}>
                   <div style={{ fontSize:13, fontWeight:700, color:'#c2410c' }}>{g.n4}</div>
                   <div style={{ fontSize:11, color:'#94a3b8', marginTop:1 }}>
-                    {g.transcripcion_voz ? `"${g.transcripcion_voz}" · ` : ''}{fmtDate(g.fecha)} · ${fmt(g.monto)}
+                    {g.transcripcion_voz ? g.transcripcion_voz + ' - ' : ''}{fmtDate(g.fecha)} - {fmt(g.monto)}
                   </div>
                 </div>
                 <div style={{ display:'flex', gap:5, flexShrink:0 }}>
-                  <button onClick={() => startEdit(g)}
-                    style={{ padding:'5px 12px', borderRadius:7, border:'1.5px solid #fed7aa', background:'#fff7ed', color:'#c2410c', fontSize:11, fontWeight:700, cursor:'pointer' }}>
-                    ✏️ Editar
-                  </button>
-                  <button onClick={() => handleConfirm(g)} disabled={saving}
-                    style={{ padding:'5px 12px', borderRadius:7, border:'none', background:'#22c55e', color:'#fff', fontSize:11, fontWeight:700, cursor:'pointer' }}>
-                    ✓ OK
-                  </button>
+                  <button onClick={() => startEdit(g)} style={{ padding:'5px 12px', borderRadius:7, border:'1.5px solid #fed7aa', background:'#fff7ed', color:'#c2410c', fontSize:11, fontWeight:700, cursor:'pointer' }}>Editar</button>
+                  <button onClick={() => handleConfirm(g)} disabled={saving} style={{ padding:'5px 12px', borderRadius:7, border:'none', background:'#22c55e', color:'#fff', fontSize:11, fontWeight:700, cursor:'pointer' }}>OK</button>
                 </div>
               </div>
             )}
@@ -452,6 +503,7 @@ function PendientesPanel({ gastos, onEdit, onDelete, onConfirm }) {
     </div>
   )
 }
+
 
 export default function ListView({ gastos, onDelete, onEdit, onRefresh }) {
   const { fmtMoney, saveSettings, settings } = useApp()
