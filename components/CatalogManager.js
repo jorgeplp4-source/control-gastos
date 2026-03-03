@@ -121,9 +121,11 @@ function MRow({ id, label, icon, unit, count, selected, color, onSelect, onEdit,
   useEffect(() => { if (editing) setTimeout(()=>inp.current?.focus(), 40) }, [editing])
 
   const saveEdit = async () => {
-    if (!ev.trim() || ev===label || busy) return
+    const nameChanged = ev.trim() && ev.trim() !== label
+    const unitChanged = isItem && eu !== (unit || '')
+    if ((!nameChanged && !unitChanged) || busy) return
     setBusy(true)
-    const ok = await onEdit(id, ev.trim(), isItem ? eu : undefined)
+    const ok = await onEdit(id, nameChanged ? ev.trim() : label, isItem ? eu : undefined)
     setBusy(false)
     if (ok) setEditing(false); else setEv(label)
   }
