@@ -111,21 +111,47 @@ function AddRow({ placeholder, withIcon, withUnit, units, onAdd, disabled }) {
 }
 
 // ── MRow — fila individual (categoría o ítem) ─────────────────────────────────
-function MRow({ id, label, icon, unit, count, selected, color, onSelect, onEdit, onDelete, isItem, units, subruta }) {
+function MRow({ id, label, icon, unit, count, selected, color, onSelect, onEdit, onDelete, isItem, units, subruta, categories }) {
   const [editing, setEditing] = useState(false)
   const [ev,  setEv]  = useState(label)
   const [eu,  setEu]  = useState(unit || '')
-  const [ds,  setDs]  = useState(null)  // null | 'confirm' | 'err:msg'
+  const [en1, setEn1] = useState('')
+  const [en2, setEn2] = useState('')
+  const [en3, setEn3] = useState('')
+  const [ds,  setDs]  = useState(null)
   const [busy,setBusy]= useState(false)
   const inp = useRef(null)
   useEffect(() => { if (editing) setTimeout(()=>inp.current?.focus(), 40) }, [editing])
 
+  const n1Opts = useMemo(() => {
+    if (!categories) return []
+    const seen = new Set()
+    return categories.filter(r => r.n1 && !seen.has(r.n1) && seen.add(r.n1)).map(r => r.n1).sort()
+  }, [categories])
+  const n2Opts = useMemo(() => {
+    if (!categories || !en1) return []
+    const seen = new Set()
+    return categories.filter(r => r.n1 === en1 && r.n2 && !seen.has(r.n2) && seen.add(r.n2)).map(r => r.n2).sort()
+  }, [categories, en1])
+  const n3Opts = useMemo(() => {
+    if (!categories || !en1 || !en2) return []
+    const seen = new Set()
+    return categories.filter(r => r.n1 === en1 && r.n2 === en2 && r.n3 && !seen.has(r.n3) && seen.add(r.n3)).map(r => r.n3).sort()
+  }, [categories, en1, en2])
+
   const saveEdit = async () => {
-    if (!ev.trim() || ev===label || busy) return
+    const nameChanged = ev.trim() && ev.trim() !== label
+    const unitChanged = isItem && eu !== (unit || '')
+    const catChanged  = isItem && en1 !== ''
+    if ((!nameChanged && !unitChanged && !catChanged) || busy) return
     setBusy(true)
-    const ok = await onEdit(id, ev.trim(), isItem ? eu : undefined)
+    const ok = await onEdit(id,
+      nameChanged ? ev.trim() : label,
+      isItem ? eu : undefined,
+      catChanged ? { n1: en1, n2: en2 || null, n3: en3 || null } : undefined
+    )
     setBusy(false)
-    if (ok) setEditing(false); else setEv(label)
+    if (ok) { setEditing(false); setEn1(''); setEn2(''); setEn3('') } else setEv(label)
   }
   const confirmDel = async () => {
     setBusy(true); const r = await onDelete(id, label); setBusy(false)
@@ -195,6 +221,33 @@ function MRow({ id, label, icon, unit, count, selected, color, onSelect, onEdit,
                   <option key={u} value={u}>{u}</option>
                 ))}
               </select>
+            </div>
+          )}
+          {isItem && categories && (
+            <div style={{ borderTop:'1px dashed var(--border)', paddingTop:5, marginTop:2 }}>
+              <div style={{ fontSize:9, fontWeight:700, color:'var(--text-muted)', marginBottom:4, textTransform:'uppercase', letterSpacing:'.05em' }}>
+                Mover a otra categoría
+              </div>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:3 }}>
+                <select value={en1} onChange={e=>{setEn1(e.target.value);setEn2('');setEn3('')}}
+                  style={{ padding:'2px 5px', border:'1px solid var(--border)', borderRadius:4, background:'var(--surface)', color:'var(--text-primary)', fontFamily:'inherit', fontSize:10, outline:'none', cursor:'pointer' }}>
+                  <option value="">Tipo…</option>
+                  {n1Opts.map(o=><option key={o} value={o}>{o}</option>)}
+                </select>
+                <select value={en2} onChange={e=>{setEn2(e.target.value);setEn3('')}} disabled={!en1}
+                  style={{ padding:'2px 5px', border:'1px solid var(--border)', borderRadius:4, background:'var(--surface)', color:'var(--text-primary)', fontFamily:'inherit', fontSize:10, outline:'none', cursor:'pointer', opacity:!en1?.4:1 }}>
+                  <option value="">Área…</option>
+                  {n2Opts.map(o=><option key={o} value={o}>{o}</option>)}
+                </select>
+                <select value={en3} onChange={e=>setEn3(e.target.value)} disabled={!en2}
+                  style={{ padding:'2px 5px', border:'1px solid var(--border)', borderRadius:4, background:'var(--surface)', color:'var(--text-primary)', fontFamily:'inherit', fontSize:10, outline:'none', cursor:'pointer', opacity:!en2?.4:1 }}>
+                  <option value="">Subcateg…</option>
+                  {n3Opts.map(o=><option key={o} value={o}>{o}</option>)}
+                </select>
+              </div>
+              {en1 && <div style={{ fontSize:9, color:'var(--accent)', marginTop:3, fontStyle:'italic' }}>
+                → {en1}{en2?' › '+en2:''}{en3?' › '+en3:''}
+              </div>}
             </div>
           )}
         </div>
