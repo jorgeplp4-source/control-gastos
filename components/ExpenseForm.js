@@ -1,6 +1,7 @@
 'use client'
-import { useState, useCallback, useRef } from 'react'
+import React, { useState, useCallback, useRef } from 'react'
 import { N1_COLORS } from '../lib/constants'
+import { useApp } from '../context/AppContext'
 import { useUnits } from '../lib/useUnits'
 import { useItems } from '../lib/useItems'
 import { useCategories } from '../lib/useCategories'
@@ -35,6 +36,76 @@ const MATCH_BADGE = {
   n2:    { label:'Área',         color:'#059669' },
   n1:    { label:'Tipo',         color:'#1e40af' },
   libre: { label:'Libre',        color:'#64748b' },
+}
+
+// ── DateInput — respeta el formato configurado en Ajustes ────────────────────
+function DateInput({ value, onChange, style }) {
+  const { settings } = useApp()
+  const fmt = settings?.date_format || 'DD/MM/YYYY'
+
+  // value es siempre YYYY-MM-DD (formato interno)
+  // display convierte al formato visual
+  const toDisplay = (iso) => {
+    if (!iso) return ''
+    const [y, m, d] = iso.split('-')
+    if (!y || !m || !d) return iso
+    if (fmt === 'MM/DD/YYYY') return `${m}/${d}/${y}`
+    if (fmt === 'YYYY-MM-DD') return `${y}-${m}-${d}`
+    return `${d}/${m}/${y}` // DD/MM/YYYY default
+  }
+
+  // Parsea el texto ingresado de vuelta a YYYY-MM-DD
+  const toISO = (txt) => {
+    const clean = txt.replace(/[^0-9]/g, '')
+    if (clean.length < 8) return null
+    if (fmt === 'MM/DD/YYYY') {
+      const m = clean.slice(0,2), d = clean.slice(2,4), y = clean.slice(4,8)
+      return `${y}-${m}-${d}`
+    }
+    if (fmt === 'YYYY-MM-DD') {
+      const y = clean.slice(0,4), m = clean.slice(4,6), d = clean.slice(6,8)
+      return `${y}-${m}-${d}`
+    }
+    // DD/MM/YYYY
+    const d = clean.slice(0,2), m = clean.slice(2,4), y = clean.slice(4,8)
+    return `${y}-${m}-${d}`
+  }
+
+  const placeholder = fmt === 'MM/DD/YYYY' ? 'MM/DD/AAAA' : fmt === 'YYYY-MM-DD' ? 'AAAA-MM-DD' : 'DD/MM/AAAA'
+  const sep = fmt === 'YYYY-MM-DD' ? '-' : '/'
+
+  const [display, setDisplay] = React.useState(toDisplay(value))
+
+  React.useEffect(() => { setDisplay(toDisplay(value)) }, [value, fmt])
+
+  const handleChange = (e) => {
+    let raw = e.target.value
+    // Auto-insertar separadores
+    const digits = raw.replace(/[^0-9]/g, '')
+    let masked = ''
+    if (fmt === 'YYYY-MM-DD') {
+      if (digits.length <= 4) masked = digits
+      else if (digits.length <= 6) masked = `${digits.slice(0,4)}${sep}${digits.slice(4)}`
+      else masked = `${digits.slice(0,4)}${sep}${digits.slice(4,6)}${sep}${digits.slice(6,8)}`
+    } else {
+      if (digits.length <= 2) masked = digits
+      else if (digits.length <= 4) masked = `${digits.slice(0,2)}${sep}${digits.slice(2)}`
+      else masked = `${digits.slice(0,2)}${sep}${digits.slice(2,4)}${sep}${digits.slice(4,8)}`
+    }
+    setDisplay(masked)
+    const iso = toISO(masked)
+    if (iso && /^\d{4}-\d{2}-\d{2}$/.test(iso)) onChange({ target: { value: iso } })
+  }
+
+  return (
+    <input
+      value={display}
+      onChange={handleChange}
+      placeholder={placeholder}
+      maxLength={10}
+      style={style}
+    />
+  )
 }
 
 function VoicePanel({ state, transcript, resolved, onDismiss }) {
@@ -303,7 +374,7 @@ export default function ExpenseForm({ initial, onSave, onCancel }) {
               <input type="number" min="0" step="1" value={form.monto} onChange={e=>set('monto',e.target.value)} placeholder="0" style={inp}/>
             </div>
             <div><label style={lbl}>Fecha</label>
-              <input type="date" value={form.fecha} onChange={e=>set('fecha',e.target.value)} style={inp}/>
+              <DateInput value={form.fecha} onChange={e=>set('fecha',e.target.value)} style={inp}/>
             </div>
           </div>
 
