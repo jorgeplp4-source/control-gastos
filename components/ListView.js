@@ -2,6 +2,7 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import { N1_COLORS, fmt, fmtDate, uniq, PERIODOS, getPeriodo } from '../lib/constants'
 import { useApp } from '../context/AppContext'
+import { useCategories } from '../lib/useCategories'
 import {
   IconEditar, IconEliminar, IconBuscar, IconCerrar,
   IconDinero, IconRecibo, IconCalendario, IconTop,
@@ -323,7 +324,136 @@ function ColHeader({ col, sortField, sortDir, onSort, isDragOver, onDragStart, o
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
-export default function ListView({ gastos, onDelete, onEdit }) {
+
+// ── Panel de gastos pendientes de revisión ────────────────────────────────────
+function PendientesPanel({ gastos, onEdit, onDelete, onConfirm }) {
+  const pendientes = gastos.filter(g => g.pendiente_revision)
+  const { categories } = useCategories()
+  const [editId,    setEditId]    = useState(null)
+  const [editData,  setEditData]  = useState({})
+  const [saving,    setSaving]    = useState(false)
+
+  const n1Opts = useMemo(() => {
+    const seen = new Set()
+    return categories.filter(r => r.n1 && !seen.has(r.n1) && seen.add(r.n1)).map(r => r.n1).sort()
+  }, [categories])
+
+  if (!pendientes.length) return null
+
+  const startEdit = (g) => {
+    setEditId(g.id)
+    setEditData({ n4: g.n4, n1: g.n1||'', n2: g.n2||'', n3: g.n3||'', monto: g.monto, cantidad: g.cantidad||1, unidad: g.unidad||'unidad' })
+  }
+
+  const handleConfirm = async (g) => {
+    setSaving(true)
+    const updates = editId === g.id ? { ...editData, pendiente_revision: false } : { pendiente_revision: false }
+    await fetch('/api/gastos', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: g.id, ...updates }),
+    })
+    onConfirm?.()
+    setEditId(null)
+    setSaving(false)
+  }
+
+  const inp = { padding:'6px 10px', border:'1.5px solid var(--border)', borderRadius:8,
+    fontSize:12, background:'var(--surface)', color:'var(--text-primary)',
+    fontFamily:'inherit', outline:'none', width:'100%', boxSizing:'border-box' }
+  const sel = { ...inp, cursor:'pointer' }
+
+  return (
+    <div style={{ background:'#fff7ed', border:'2px solid #fed7aa', borderRadius:14, overflow:'hidden', marginBottom:4 }}>
+      {/* Header */}
+      <div style={{ padding:'10px 16px', background:'#ffedd5', borderBottom:'1px solid #fed7aa',
+        display:'flex', alignItems:'center', gap:8 }}>
+        <span style={{ fontSize:18 }}>🔍</span>
+        <div style={{ flex:1 }}>
+          <div style={{ fontSize:13, fontWeight:800, color:'#c2410c' }}>
+            {pendientes.length} gasto{pendientes.length !== 1 ? 's' : ''} pendiente{pendientes.length !== 1 ? 's' : ''} de revisión
+          </div>
+          <div style={{ fontSize:11, color:'#ea580c' }}>
+            Registrados por voz · ítem no encontrado en el catálogo
+          </div>
+        </div>
+      </div>
+
+      {/* Lista */}
+      <div style={{ display:'flex', flexDirection:'column', gap:0 }}>
+        {pendientes.map((g, i) => (
+          <div key={g.id} style={{ borderBottom: i < pendientes.length-1 ? '1px solid #fed7aa' : 'none' }}>
+            {editId === g.id ? (
+              /* ── Modo edición ── */
+              <div style={{ padding:'14px 16px', background:'#fff', display:'flex', flexDirection:'column', gap:10 }}>
+                <div style={{ fontSize:11, fontWeight:700, color:'#c2410c', textTransform:'uppercase', letterSpacing:'.05em' }}>
+                  Editando gasto · {g.transcripcion_voz && <span style={{ fontWeight:400, color:'#94a3b8' }}>Escuché: "{g.transcripcion_voz}"</span>}
+                </div>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                  <div style={{ gridColumn:'1/-1' }}>
+                    <label style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', display:'block', marginBottom:3 }}>Nombre del ítem</label>
+                    <input value={editData.n4} onChange={e => setEditData(p=>({...p, n4:e.target.value}))} style={inp}/>
+                  </div>
+                  <div>
+                    <label style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', display:'block', marginBottom:3 }}>Tipo (N1)</label>
+                    <select value={editData.n1} onChange={e => setEditData(p=>({...p, n1:e.target.value, n2:'', n3:''}))} style={sel}>
+                      <option value="">Sin definir</option>
+                      {n1Opts.map(o => <option key={o} value={o}>{o}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', display:'block', marginBottom:3 }}>Monto</label>
+                    <input type="number" value={editData.monto} onChange={e => setEditData(p=>({...p, monto:parseFloat(e.target.value)||0}))} style={inp}/>
+                  </div>
+                </div>
+                <div style={{ display:'flex', gap:7, justifyContent:'flex-end' }}>
+                  <button onClick={() => setEditId(null)}
+                    style={{ padding:'6px 14px', borderRadius:8, border:'1.5px solid var(--border)', background:'var(--surface2)', color:'var(--text-muted)', fontSize:12, fontWeight:600, cursor:'pointer' }}>
+                    Cancelar
+                  </button>
+                  <button onClick={() => onDelete(g.id)}
+                    style={{ padding:'6px 14px', borderRadius:8, border:'none', background:'#fee2e2', color:'#ef4444', fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                    Eliminar
+                  </button>
+                  <button onClick={() => handleConfirm(g)} disabled={saving || !editData.n4.trim()}
+                    style={{ padding:'6px 16px', borderRadius:8, border:'none',
+                      background: editData.n4.trim() ? '#22c55e' : 'var(--border)',
+                      color: editData.n4.trim() ? '#fff' : 'var(--text-muted)',
+                      fontSize:12, fontWeight:800, cursor:'pointer' }}>
+                    {saving ? '…' : '✓ Confirmar'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* ── Modo vista ── */
+              <div style={{ padding:'11px 16px', display:'flex', alignItems:'center', gap:12 }}>
+                <span style={{ fontSize:16, flexShrink:0 }}>⚠️</span>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontSize:13, fontWeight:700, color:'#c2410c' }}>{g.n4}</div>
+                  <div style={{ fontSize:11, color:'#94a3b8', marginTop:1 }}>
+                    {g.transcripcion_voz ? `"${g.transcripcion_voz}" · ` : ''}{fmtDate(g.fecha)} · ${fmt(g.monto)}
+                  </div>
+                </div>
+                <div style={{ display:'flex', gap:5, flexShrink:0 }}>
+                  <button onClick={() => startEdit(g)}
+                    style={{ padding:'5px 12px', borderRadius:7, border:'1.5px solid #fed7aa', background:'#fff7ed', color:'#c2410c', fontSize:11, fontWeight:700, cursor:'pointer' }}>
+                    ✏️ Editar
+                  </button>
+                  <button onClick={() => handleConfirm(g)} disabled={saving}
+                    style={{ padding:'5px 12px', borderRadius:7, border:'none', background:'#22c55e', color:'#fff', fontSize:11, fontWeight:700, cursor:'pointer' }}>
+                    ✓ OK
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+export default function ListView({ gastos, onDelete, onEdit, onRefresh }) {
   const { fmtMoney, saveSettings, settings } = useApp()
   const recurrentes = useRecurrentes()
 
@@ -501,6 +631,9 @@ export default function ListView({ gastos, onDelete, onEdit }) {
           />
         )}
 
+        {/* Pendientes de revisión */}
+        <PendientesPanel gastos={gastos} onEdit={onEdit} onDelete={(id) => { onDelete(id) }} onConfirm={onRefresh} />
+
         {/* KPIs compactos */}
         <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:8 }}>
           {[
@@ -646,7 +779,7 @@ export default function ListView({ gastos, onDelete, onEdit }) {
                   const c = N1_COLORS[g.n1] || { bg:'#64748b', light:'var(--surface2)', text:'#64748b' }
                   const rec = recSet[`${g.n1}|${g.n4}`]
                   return (
-                    <tr key={g.id} style={{ borderBottom:'1px solid var(--border)', background: i%2===0 ? 'var(--surface)' : 'var(--surface2)' }}>
+                    <tr key={g.id} style={{ borderBottom:'1px solid var(--border)', background: g.pendiente_revision ? '#fff7ed' : (i%2===0 ? 'var(--surface)' : 'var(--surface2)') }}>
                       {cols.map(col => {
                         switch(col.id) {
                           case 'monto': return (

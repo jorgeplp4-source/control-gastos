@@ -231,7 +231,7 @@ export default function Home() {
       <main style={{ maxWidth: 1200, margin: '0 auto', padding: '24px 16px 80px' }}>
         {tab === 'dashboard'     && <Dashboard  gastos={gastos} onNavigate={navigateTo} alertas={alertas} />}
         {tab === 'registro'      && <ExpenseForm key={editTarget?.id || 'new'} initial={editTarget} onSave={handleSave} onCancel={() => { setEditTarget(null); setTab('listado') }} />}
-        {tab === 'listado'       && <ListView   gastos={gastos} onDelete={handleDelete} onEdit={g => { setEditTarget(g); setTab('registro') }} />}
+        {tab === 'listado'       && <ListView   gastos={gastos} onDelete={handleDelete} onEdit={g => { setEditTarget(g); setTab('registro') }} onRefresh={() => fetch('/api/gastos').then(r=>r.json()).then(d=>setGastos(Array.isArray(d)?d:[]))} />}
         {tab === 'ingresos'      && <IngresosPage />}
         {tab === 'asesor'        && <AsesorPage gastos={gastos} />}
         {tab === 'configuracion' && <ConfigPage />}
