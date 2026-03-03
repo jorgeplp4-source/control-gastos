@@ -419,6 +419,20 @@ function AllItemsList({ items, units, categories, onEditItem, onDeleteItem, refe
   )
 }
 
+// ── McCol — columna del grid ──────────────────────────────────────────────────
+function McCol({ title, dot, idx, mobileIdx, children, onAdd, addPh, addIcon, addUnit, units, addDis }) {
+  return (
+    <div className={`mc-col ${mobileIdx===idx?'mc-active':''}`}
+      style={{ display:'flex', flexDirection:'column', borderRight:'1px solid var(--border)', minHeight:0 }}>
+      <div style={{ padding:'8px 12px', borderBottom:'1px solid var(--border)', background:'var(--surface2)', flexShrink:0, display:'flex', alignItems:'center', gap:6 }}>
+        {dot && <span style={{ width:7, height:7, borderRadius:'50%', background:dot, flexShrink:0 }}/>}
+        <span style={{ fontSize:10, fontWeight:800, textTransform:'uppercase', letterSpacing:'.08em', color:'var(--text-muted)' }}>{title}</span>
+      </div>
+      <div style={{ flex:1, overflowY:'auto', padding:'4px 0' }}>{children}</div>
+      {onAdd && <AddRow placeholder={addPh} withIcon={addIcon} withUnit={addUnit} units={units} onAdd={onAdd} disabled={addDis}/>}
+    </div>
+  )
+}
 
 const Empty = ({label, cta}) => (
   <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'28px 14px', gap:6, color:'var(--text-muted)', textAlign:'center' }}>
@@ -581,7 +595,7 @@ export default function CatalogManager() {
   const editItem = useCallback(async (id, nombre, unidad, newCat) => {
     const it = items.find(i=>i.id===id)
     if (!it) return false
-    try { await itemPut({ id, nombre, n1:newCat?newCat.n1:it.n1, n2:newCat?newCat.n2:it.n2, n3:newCat?newCat.n3:it.n3, unidad_default:unidad||it.unidad_default }); refetchItems(); toast_(newCat?('✓ Reubicado en '+newCat.n1+(newCat.n2?' > '+newCat.n2:'')):('✓ Ítem actualizado')); return true } catch(e) { toast_('⚠ '+e.message,'err'); return false }
+    try { await itemPut({ id, nombre, n1:newCat?newCat.n1:it.n1, n2:newCat?newCat.n2:it.n2, n3:newCat?newCat.n3:it.n3, unidad_default:unidad||it.unidad_default }); refetchItems(); toast_(newCat?('✓ Reubicado en '+newCat.n1+(newCat.n2?' > '+newCat.n2:'')+(newCat.n3?' > '+newCat.n3:'')):'✓ Ítem actualizado'); return true } catch(e) { toast_('⚠ '+e.message,'err'); return false }
   }, [items,refetchItems])
   const delItem  = useCallback(async (id,label) => {
     try { await itemDel(id); refetchItems(); toast_(`✓ "${label}" eliminado`); return true } catch(e) { toast_('⚠ '+e.message,'err'); return e.message }
