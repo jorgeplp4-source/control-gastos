@@ -111,48 +111,21 @@ function AddRow({ placeholder, withIcon, withUnit, units, onAdd, disabled }) {
 }
 
 // ── MRow — fila individual (categoría o ítem) ─────────────────────────────────
-function MRow({ id, label, icon, unit, count, selected, color, onSelect, onEdit, onDelete, isItem, units, subruta, categories }) {
+function MRow({ id, label, icon, unit, count, selected, color, onSelect, onEdit, onDelete, isItem, units, subruta }) {
   const [editing, setEditing] = useState(false)
   const [ev,  setEv]  = useState(label)
   const [eu,  setEu]  = useState(unit || '')
   const [ds,  setDs]  = useState(null)  // null | 'confirm' | 'err:msg'
   const [busy,setBusy]= useState(false)
-  const [en1, setEn1] = useState('')
-  const [en2, setEn2] = useState('')
-  const [en3, setEn3] = useState('')
-  const [dragging, setDragging] = useState(false)
   const inp = useRef(null)
   useEffect(() => { if (editing) setTimeout(()=>inp.current?.focus(), 40) }, [editing])
 
-  const n1Opts = useMemo(() => {
-    if (!categories) return []
-    const seen = new Set()
-    return categories.filter(r => r.n1 && !seen.has(r.n1) && seen.add(r.n1)).map(r => r.n1).sort()
-  }, [categories])
-  const n2Opts = useMemo(() => {
-    if (!categories || !en1) return []
-    const seen = new Set()
-    return categories.filter(r => r.n1 === en1 && r.n2 && !seen.has(r.n2) && seen.add(r.n2)).map(r => r.n2).sort()
-  }, [categories, en1])
-  const n3Opts = useMemo(() => {
-    if (!categories || !en1 || !en2) return []
-    const seen = new Set()
-    return categories.filter(r => r.n1 === en1 && r.n2 === en2 && r.n3 && !seen.has(r.n3) && seen.add(r.n3)).map(r => r.n3).sort()
-  }, [categories, en1, en2])
-
   const saveEdit = async () => {
-    const nameChanged = ev.trim() && ev.trim() !== label
-    const unitChanged = isItem && eu !== (unit || '')
-    const catChanged  = isItem && en1 !== ''
-    if ((!nameChanged && !unitChanged && !catChanged) || busy) return
+    if (!ev.trim() || ev===label || busy) return
     setBusy(true)
-    const ok = await onEdit(id,
-      nameChanged ? ev.trim() : label,
-      isItem ? eu : undefined,
-      catChanged ? { n1: en1, n2: en2 || null, n3: en3 || null } : undefined
-    )
+    const ok = await onEdit(id, ev.trim(), isItem ? eu : undefined)
     setBusy(false)
-    if (ok) { setEditing(false); setEn1(''); setEn2(''); setEn3('') } else setEv(label)
+    if (ok) setEditing(false); else setEv(label)
   }
   const confirmDel = async () => {
     setBusy(true); const r = await onDelete(id, label); setBusy(false)
@@ -184,21 +157,14 @@ function MRow({ id, label, icon, unit, count, selected, color, onSelect, onEdit,
   )
 
   return (
-    <div className="mrow"
-      draggable={isItem && !editing}
-      onDragStart={e => { if (!isItem) return; setDragging(true); e.dataTransfer.setData('text/plain', id); e.dataTransfer.effectAllowed = 'move' }}
-      onDragEnd={() => setDragging(false)}
-      onClick={()=>!editing&&onSelect?.()}
-      style={{
-        display:'flex', alignItems:'center', gap:7, padding:'7px 10px',
-        cursor: editing ? 'default' : isItem ? 'grab' : onSelect ? 'pointer' : 'default',
-        borderRadius:8, margin:'1px 4px', position:'relative',
-        background: selected ? (c.light||'var(--accent-light,#eff6ff)') : 'transparent',
-        border: `1.5px solid ${dragging ? 'var(--accent)' : selected?(c.bg||'var(--accent)'):'transparent'}`,
-        opacity: dragging ? 0.5 : 1,
-        transition:'background .1s',
-      }}>
-      {isItem && !editing && <span style={{ fontSize:10, color:'var(--text-muted)', cursor:'grab', flexShrink:0, marginRight:-3 }} title="Arrastrar para reubicar">⠿</span>}
+    <div className="mrow" onClick={()=>!editing&&onSelect?.()} style={{
+      display:'flex', alignItems:'center', gap:7, padding:'7px 10px',
+      cursor: onSelect ? 'pointer' : 'default',
+      borderRadius:8, margin:'1px 4px', position:'relative',
+      background: selected ? (c.light||'var(--accent-light,#eff6ff)') : 'transparent',
+      border: `1.5px solid ${selected?(c.bg||'var(--accent)'):'transparent'}`,
+      transition:'background .1s',
+    }}>
       {icon
         ? <span style={{ fontSize:14, flexShrink:0 }}>{icon}</span>
         : <span style={{ width:7, height:7, borderRadius:'50%', background:c.bg, flexShrink:0 }}/>}
@@ -229,33 +195,6 @@ function MRow({ id, label, icon, unit, count, selected, color, onSelect, onEdit,
                   <option key={u} value={u}>{u}</option>
                 ))}
               </select>
-            </div>
-          )}
-          {isItem && categories && (
-            <div style={{ borderTop:'1px dashed var(--border)', paddingTop:5, marginTop:2 }}>
-              <div style={{ fontSize:9, fontWeight:700, color:'var(--text-muted)', marginBottom:4, textTransform:'uppercase', letterSpacing:'.05em' }}>
-                Mover a otra categoría
-              </div>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:3 }}>
-                <select value={en1} onChange={e=>{setEn1(e.target.value);setEn2('');setEn3('')}}
-                  style={{ padding:'2px 5px', border:'1px solid var(--border)', borderRadius:4, background:'var(--surface)', color:'var(--text-primary)', fontFamily:'inherit', fontSize:10, outline:'none', cursor:'pointer' }}>
-                  <option value="">Tipo…</option>
-                  {n1Opts.map(o=><option key={o} value={o}>{o}</option>)}
-                </select>
-                <select value={en2} onChange={e=>{setEn2(e.target.value);setEn3('')}} disabled={!en1}
-                  style={{ padding:'2px 5px', border:'1px solid var(--border)', borderRadius:4, background:'var(--surface)', color:'var(--text-primary)', fontFamily:'inherit', fontSize:10, outline:'none', cursor:'pointer', opacity:!en1?.4:1 }}>
-                  <option value="">Área…</option>
-                  {n2Opts.map(o=><option key={o} value={o}>{o}</option>)}
-                </select>
-                <select value={en3} onChange={e=>setEn3(e.target.value)} disabled={!en2}
-                  style={{ padding:'2px 5px', border:'1px solid var(--border)', borderRadius:4, background:'var(--surface)', color:'var(--text-primary)', fontFamily:'inherit', fontSize:10, outline:'none', cursor:'pointer', opacity:!en2?.4:1 }}>
-                  <option value="">Subcateg…</option>
-                  {n3Opts.map(o=><option key={o} value={o}>{o}</option>)}
-                </select>
-              </div>
-              {en1 && <div style={{ fontSize:9, color:'var(--accent)', marginTop:3, fontStyle:'italic' }}>
-                → {en1}{en2?' › '+en2:''}{en3?' › '+en3:''}
-              </div>}
             </div>
           )}
         </div>
@@ -289,15 +228,12 @@ function MRow({ id, label, icon, unit, count, selected, color, onSelect, onEdit,
   )
 }
 
+
 // ── McCol — columna del grid ──────────────────────────────────────────────────
-function McCol({ title, dot, idx, mobileIdx, children, onAdd, addPh, addIcon, addUnit, units, addDis, onDragOver, onDragLeave, onDrop, dropActive }) {
+function McCol({ title, dot, idx, mobileIdx, children, onAdd, addPh, addIcon, addUnit, units, addDis }) {
   return (
     <div className={`mc-col ${mobileIdx===idx?'mc-active':''}`}
-      onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}
-      style={{ display:'flex', flexDirection:'column', borderRight:'1px solid var(--border)', minHeight:0,
-        outline: dropActive ? '2px dashed var(--accent)' : 'none',
-        background: dropActive ? 'var(--accent-light,#eff6ff)' : 'transparent',
-        transition:'background .12s' }}>
+      style={{ display:'flex', flexDirection:'column', borderRight:'1px solid var(--border)', minHeight:0 }}>
       <div style={{ padding:'8px 12px', borderBottom:'1px solid var(--border)', background:'var(--surface2)', flexShrink:0, display:'flex', alignItems:'center', gap:6 }}>
         {dot && <span style={{ width:7, height:7, borderRadius:'50%', background:dot, flexShrink:0 }}/>}
         <span style={{ fontSize:10, fontWeight:800, textTransform:'uppercase', letterSpacing:'.08em', color:'var(--text-muted)' }}>{title}</span>
@@ -382,7 +318,8 @@ function SearchResults({ categories, items, q, onNavigate }) {
 }
 
 // ── AllItemsList — vista completa de todos los ítems ─────────────────────────
-function AllItemsList({ items, units, onEditItem, onDeleteItem, refetchItems }) {
+
+function AllItemsList({ items, units, categories, onEditItem, onDeleteItem, refetchItems }) {
   const [localQ, setLocalQ] = useState('')
 
   const filtered = useMemo(() => {
@@ -469,6 +406,7 @@ function AllItemsList({ items, units, onEditItem, onDeleteItem, refetchItems }) 
 }
 
 // ── Main CatalogManager ───────────────────────────────────────────────────────
+
 export default function CatalogManager() {
   const { categories, loading: catLoading, refetch: refetchCats } = useCategories()
   const { items, loading: itemLoading, refetch: refetchItems } = useItems()
@@ -480,7 +418,6 @@ export default function CatalogManager() {
   const [s1id, setS1id] = useState(null)
   const [s2id, setS2id] = useState(null)
   const [s3id, setS3id] = useState(null)
-  const [dropCol, setDropCol] = useState(null)
   const [q,    setQ]    = useState('')
   const [mc,   setMc]   = useState(0)
   const [view, setView] = useState('columns')
@@ -527,19 +464,6 @@ export default function CatalogManager() {
   const itemPut  = async b => { const r=await fetch('/api/items',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)}); const d=await r.json(); if(!r.ok) throw new Error(d.error||'Error'); return d }
   const itemDel  = async id => { const r=await fetch(`/api/items?id=${id}`,{method:'DELETE'}); const d=await r.json(); if(!r.ok) throw new Error(d.error||'Error'); return d }
 
-  const handleColDrop = async (e, targetN1, targetN2, targetN3) => {
-    e.preventDefault(); setDropCol(null)
-    const itemId = e.dataTransfer.getData('text/plain')
-    if (!itemId) return
-    const it = items.find(i => String(i.id) === String(itemId))
-    if (!it) return
-    if (it.n1 === targetN1 && it.n2 === (targetN2||null) && it.n3 === (targetN3||null)) return
-    try {
-      await itemPut({ id: it.id, nombre: it.nombre, n1: targetN1, n2: targetN2||null, n3: targetN3||null, unidad_default: it.unidad_default })
-      refetchItems()
-      toast_('✓ Movido a ' + targetN1 + (targetN2?' › '+targetN2:'') + (targetN3?' › '+targetN3:''))
-    } catch(err) { toast_('⚠ '+err.message,'err') }
-  }
 
   // ── CRUD callbacks ──────────────────────────────────────────────────────────
   const addN1   = useCallback(async (nombre,icono) => {
@@ -695,7 +619,7 @@ export default function CatalogManager() {
       {/* ── Vista lista completa de ítems ─────────────────────────────────── */}
       {view==='list' && (
         <div style={{ border:'1px solid var(--border)', borderTop:'none', borderRadius:'0 0 12px 12px', overflow:'hidden', background:'var(--surface)', display:'flex', flexDirection:'column' }}>
-          <AllItemsList items={items} units={units} onEditItem={editItem} onDeleteItem={delItem} refetchItems={refetchItems}/>
+          <AllItemsList items={items} units={units} categories={categories} onEditItem={editItem} onDeleteItem={delItem} refetchItems={refetchItems}/>
         </div>
       )}
 
@@ -725,11 +649,7 @@ export default function CatalogManager() {
 
             {/* Col 1 — N1 */}
             <McCol title={COL_LABELS[0]} idx={0} mobileIdx={mc}
-              onAdd={addN1} addPh="Nombre del tipo…" addIcon addDis={false} units={units}
-              onDragOver={e=>{e.preventDefault();setDropCol('n1-'+s1)}}
-              onDragLeave={()=>setDropCol(null)}
-              onDrop={e=>s1&&handleColDrop(e,s1,null,null)}
-              dropActive={dropCol===('n1-'+s1)&&!!s1}>
+              onAdd={addN1} addPh="Nombre del tipo…" addIcon addDis={false} units={units}}>
               {n1List.length===0
                 ? <Empty label="Sin tipos todavía" cta="Usá ＋ para agregar"/>
                 : n1List.map(n1=>(
@@ -744,11 +664,7 @@ export default function CatalogManager() {
 
             {/* Col 2 — N2 */}
             <McCol title={COL_LABELS[1]} dot={selColor?.bg} idx={1} mobileIdx={mc}
-              onAdd={s1id?addN2:undefined} addPh="Nombre del área…" addIcon addDis={!s1id} units={units}
-              onDragOver={e=>{e.preventDefault();setDropCol('n2-'+s2)}}
-              onDragLeave={()=>setDropCol(null)}
-              onDrop={e=>s1&&s2&&handleColDrop(e,s1,s2,null)}
-              dropActive={dropCol===('n2-'+s2)&&!!s2}>
+              onAdd={s1id?addN2:undefined} addPh="Nombre del área…" addIcon addDis={!s1id} units={units}}>
               {!s1 ? <Empty label="Seleccioná un Tipo" cta="← izquierda"/>
               : n2List.length===0 ? <Empty label="Sin áreas" cta="Opcional — podés agregar ítems directo al Tipo"/>
               : n2List.map(n2=>(
@@ -763,11 +679,7 @@ export default function CatalogManager() {
 
             {/* Col 3 — N3 */}
             <McCol title={COL_LABELS[2]} idx={2} mobileIdx={mc}
-              onAdd={s2id?addN3:undefined} addPh="Nombre de subcategoría…" addDis={!s2id} units={units}
-              onDragOver={e=>{e.preventDefault();setDropCol('n3-'+s3)}}
-              onDragLeave={()=>setDropCol(null)}
-              onDrop={e=>s1&&s2&&s3&&handleColDrop(e,s1,s2,s3)}
-              dropActive={dropCol===('n3-'+s3)&&!!s3}>
+              onAdd={s2id?addN3:undefined} addPh="Nombre de subcategoría…" addDis={!s2id} units={units}}>
               {!s2 ? <Empty label="Seleccioná un Área" cta="← anterior"/>
               : n3List.length===0 ? <Empty label="Sin subcategorías" cta="Opcional — podés agregar ítems al Área"/>
               : n3List.map(n3=>(
@@ -790,7 +702,7 @@ export default function CatalogManager() {
                     isItem selected={false} color={selColor} units={units}
                     subruta={!s2 ? [it.n2,it.n3].filter(Boolean).join(' › ') || undefined
                             : !s3 ? it.n3 || undefined : undefined}
-                    onEdit={editItem} onDelete={delItem} categories={categories}/>
+                    onEdit={editItem} onDelete={delItem}/>
                 ))
               }
             </McCol>
