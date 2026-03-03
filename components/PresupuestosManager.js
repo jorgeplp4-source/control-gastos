@@ -1,34 +1,47 @@
 'use client'
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { fmt } from '../lib/constants'
 import { useApp } from '../context/AppContext'
 import { usePresupuestos } from '../lib/usePresupuestos'
+import { useCategories } from '../lib/useCategories'
 import { N1_COLORS } from '../lib/constants'
 import { IconEliminar, IconExito } from '../lib/icons'
-
-const N1_OPCIONES = ['Fijos','Variables','Extraordinarios','Imprevistos','Total general']
 
 export default function PresupuestosManager() {
   const { fmtMoney } = useApp()
   const money = v => fmtMoney ? fmtMoney(v) : fmt(v)
   const { presupuestos, refetch } = usePresupuestos()
-  const [form,    setForm]    = useState({ nivel:'n1', categoria:'Variables', monto:'' })
-  const [saving,  setSaving]  = useState(false)
-  const [saved,   setSaved]   = useState(false)
+  const { categories } = useCategories()
+  const [form,   setForm]   = useState({ categoria:'', monto:'' })
+  const [saving, setSaving] = useState(false)
+  const [saved,  setSaved]  = useState(false)
   const set = (k,v) => setForm(p => ({...p, [k]:v}))
 
+  // N1 dinámico desde el catálogo real + "Total general" al final
+  const n1Opciones = useMemo(() => {
+    const seen = new Set()
+    const opts = categories
+      .filter(r => r.n1 && !seen.has(r.n1) && seen.add(r.n1))
+      .map(r => r.n1)
+      .sort((a, b) => a.localeCompare(b, 'es'))
+    return [...opts, 'Total general']
+  }, [categories])
+
+  // Inicializar categoria cuando cargan las opciones
+  const categoriaActual = form.categoria || n1Opciones[0] || ''
+
   const handleAdd = async () => {
-    if (!form.monto || parseFloat(form.monto) <= 0) return
+    if (!form.monto || parseFloat(form.monto) <= 0 || !categoriaActual) return
     setSaving(true)
-    const nivel = form.categoria === 'Total general' ? 'total' : 'n1'
-    const categoria = form.categoria === 'Total general' ? 'total' : form.categoria
+    const nivel     = categoriaActual === 'Total general' ? 'total' : 'n1'
+    const categoria = categoriaActual === 'Total general' ? 'total' : categoriaActual
     await fetch('/api/presupuestos', {
       method: 'POST',
       headers: { 'Content-Type':'application/json' },
       body: JSON.stringify({ nivel, categoria, monto: parseFloat(form.monto) }),
     })
     await refetch()
-    setForm(p => ({ ...p, monto:'' }))
+    setForm({ categoria:'', monto:'' })
     setSaving(false); setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }
@@ -58,8 +71,8 @@ export default function PresupuestosManager() {
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr auto', gap:10, alignItems:'end' }}>
           <div>
             <label style={{ display:'block', fontSize:11, fontWeight:700, color:'var(--text-muted)', marginBottom:5 }}>Categoría</label>
-            <select value={form.categoria} onChange={e=>set('categoria',e.target.value)} style={sel}>
-              {N1_OPCIONES.map(o => <option key={o} value={o}>{o}</option>)}
+            <select value={categoriaActual} onChange={e=>set('categoria',e.target.value)} style={sel}>
+              {n1Opciones.map(o => <option key={o} value={o}>{o}</option>)}
             </select>
           </div>
           <div>
@@ -96,9 +109,7 @@ export default function PresupuestosManager() {
                   <div style={{ fontSize:14, fontWeight:700, color:'var(--text-primary)' }}>{label}</div>
                   <div style={{ fontSize:11, color:'var(--text-muted)' }}>Mensual · Alerta al 80% y 100%</div>
                 </div>
-                <div style={{ fontSize:16, fontWeight:800, color }}>
-                  {money(p.monto)}
-                </div>
+                <div style={{ fontSize:16, fontWeight:800, color }}>{money(p.monto)}</div>
                 <button onClick={() => handleDelete(p.id)}
                   style={{ border:'none', background:'none', cursor:'pointer',
                     color:'var(--text-muted)', padding:6, borderRadius:7 }}

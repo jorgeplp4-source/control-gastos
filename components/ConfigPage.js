@@ -155,7 +155,7 @@ export default function ConfigPage() {
   }
 
   return (
-    <div style={{ display:'flex', gap:0, minHeight:'60vh', background:'var(--surface)', borderRadius:20, boxShadow:'var(--shadow)', border:'1px solid var(--border)', overflow:'hidden' }}>
+    <div style={{ display:'flex', flexDirection: isMobile ? 'column' : 'row', gap:0, minHeight:'60vh', background:'var(--surface)', borderRadius:20, boxShadow:'var(--shadow)', border:'1px solid var(--border)', overflow:'hidden' }}>
 
       {/* Sidebar desktop */}
       {!isMobile && (
@@ -192,7 +192,7 @@ export default function ConfigPage() {
       )}
 
       {/* Contenido */}
-      <div style={{ flex:1, padding: isMobile ? '20px 16px' : '24px 28px', overflowY:'auto' }}>
+      <div style={{ flex:1, padding: isMobile ? '20px 16px' : '24px 28px', overflowY:'auto', minHeight: isMobile ? 300 : undefined }}>
         {renderSection()}
 
         {showSave && (
