@@ -389,7 +389,7 @@ function PendientesPanel({ gastos, onDelete, onConfirm }) {
   return (
     <div style={{ background:'#fff7ed', border:'2px solid #fed7aa', borderRadius:14, overflow:'hidden', marginBottom:4 }}>
       <div style={{ padding:'10px 16px', background:'#ffedd5', borderBottom:'1px solid #fed7aa', display:'flex', alignItems:'center', gap:8 }}>
-        <span style={{ fontSize:18 }}>SEARCH_ICON</span>
+        <span style={{ fontSize:18 }}>🔍</span>
         <div style={{ flex:1 }}>
           <div style={{ fontSize:13, fontWeight:800, color:'#c2410c' }}>
             {pendientes.length} gasto{pendientes.length !== 1 ? 's' : ''} pendiente{pendientes.length !== 1 ? 's' : ''} de revision
@@ -484,7 +484,7 @@ function PendientesPanel({ gastos, onDelete, onConfirm }) {
               </div>
             ) : (
               <div style={{ padding:'11px 16px', display:'flex', alignItems:'center', gap:12 }}>
-                <span style={{ fontSize:16, flexShrink:0 }}>WARNING</span>
+                <span style={{ fontSize:16, flexShrink:0 }}>⚠️</span>
                 <div style={{ flex:1, minWidth:0 }}>
                   <div style={{ fontSize:13, fontWeight:700, color:'#c2410c' }}>{g.n4}</div>
                   <div style={{ fontSize:11, color:'#94a3b8', marginTop:1 }}>
