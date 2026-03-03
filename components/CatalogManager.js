@@ -420,7 +420,81 @@ function AllItemsList({ items, units, categories, onEditItem, onDeleteItem, refe
 }
 
 
-// ── Main CatalogManager ───────────────────────────────────────────────────────
+const Empty = ({label, cta}) => (
+  <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'28px 14px', gap:6, color:'var(--text-muted)', textAlign:'center' }}>
+    <span style={{ fontSize:24, opacity:.3 }}>📭</span>
+    <span style={{ fontSize:12, fontWeight:600 }}>{label}</span>
+    {cta && <span style={{ fontSize:11, opacity:.6 }}>{cta}</span>}
+  </div>
+)
+
+function useToast() {
+  const [t, setT] = useState(null)
+  const tmr = useRef(null)
+  const show = useCallback((msg, type='ok') => {
+    clearTimeout(tmr.current); setT({msg,type})
+    tmr.current = setTimeout(()=>setT(null), 2800)
+  }, [])
+  return { toast:t, show }
+}
+
+// ── SearchResults — dropdown búsqueda en cats + items ────────────────────────
+function SearchResults({ categories, items, q, onNavigate }) {
+  const results = useMemo(() => {
+    if (!q || q.length < 1) return []
+    const ql = q.toLowerCase()
+    const hits = []
+    const seenN2=new Set(), seenN3=new Set(), seenItem=new Set()
+    categories.forEach(r => {
+      if (r.n2 && r.n2.toLowerCase().includes(ql) && r.n2_id && !seenN2.has(r.n2_id)) {
+        seenN2.add(r.n2_id)
+        hits.push({ type:'n2', id:r.n2_id, nombre:r.n2, ruta:r.n1, n1_id:r.n1_id, n2_id:r.n2_id })
+      }
+      if (r.n3 && r.n3.toLowerCase().includes(ql) && r.n3_id && !seenN3.has(r.n3_id)) {
+        seenN3.add(r.n3_id)
+        hits.push({ type:'n3', id:r.n3_id, nombre:r.n3, ruta:[r.n1,r.n2].filter(Boolean).join(' › '), n1_id:r.n1_id, n2_id:r.n2_id, n3_id:r.n3_id })
+      }
+    })
+    items.forEach(it => {
+      if (it.nombre.toLowerCase().includes(ql) && !seenItem.has(it.id)) {
+        seenItem.add(it.id)
+        hits.push({ type:'item', id:it.id, nombre:it.nombre, unidad:it.unidad_default,
+          ruta:[it.n1,it.n2,it.n3].filter(Boolean).join(' › '), n1:it.n1, n2:it.n2, n3:it.n3 })
+      }
+    })
+    return hits.slice(0, 40)
+  }, [categories, items, q])
+
+  if (!q || results.length === 0) return q ? (
+    <div style={{ position:'absolute', top:'100%', left:0, right:0, zIndex:200, background:'var(--surface)', border:'1.5px solid var(--border)', borderTop:'none', borderRadius:'0 0 10px 10px', padding:'12px', fontSize:12, color:'var(--text-muted)', textAlign:'center' }}>
+      Sin resultados para "{q}"
+    </div>
+  ) : null
+
+  const BADGE = { item:{label:'Ítem',color:'#6366f1'}, n2:{label:'Área',color:'#059669'}, n3:{label:'Subcateg.',color:'#d97706'} }
+
+  return (
+    <div style={{ position:'absolute', top:'100%', left:0, right:0, zIndex:200, background:'var(--surface)', border:'1.5px solid var(--border)', borderTop:'none', borderRadius:'0 0 10px 10px', boxShadow:'0 8px 24px rgba(0,0,0,.12)', maxHeight:280, overflowY:'auto' }}>
+      {results.map((r,i) => {
+        const b = BADGE[r.type]
+        return (
+          <button key={i} onClick={()=>onNavigate(r)}
+            style={{ width:'100%', padding:'8px 12px', border:'none', borderBottom:'1px solid var(--border)', background:'none', cursor:'pointer', textAlign:'left', display:'flex', alignItems:'center', gap:8 }}>
+            <span style={{ padding:'1px 6px', borderRadius:99, background:`${b.color}18`, color:b.color, fontSize:9, fontWeight:800, flexShrink:0 }}>{b.label}</span>
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ fontSize:12, fontWeight:700, color:'var(--text-primary)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{r.nombre}</div>
+              {r.ruta && <div style={{ fontSize:10, color:'var(--text-muted)' }}>{r.ruta}</div>}
+            </div>
+            {r.unidad && <span style={{ fontSize:10, color:'var(--text-muted)', flexShrink:0 }}>{r.unidad}</span>}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+// ── AllItemsList — vista completa de todos los ítems ─────────────────────────
+
 export default function CatalogManager() {
   const { categories, loading: catLoading, refetch: refetchCats } = useCategories()
   const { items, loading: itemLoading, refetch: refetchItems } = useItems()
@@ -507,18 +581,7 @@ export default function CatalogManager() {
   const editItem = useCallback(async (id, nombre, unidad, newCat) => {
     const it = items.find(i=>i.id===id)
     if (!it) return false
-    try {
-      await itemPut({ id, nombre,
-        n1: newCat ? newCat.n1 : it.n1,
-        n2: newCat ? newCat.n2 : it.n2,
-        n3: newCat ? newCat.n3 : it.n3,
-        unidad_default: newCat ? (unidad||it.unidad_default) : (unidad||it.unidad_default)
-      })
-      refetchItems()
-      if (newCat) toast_('✓ Item reubicado en ' + newCat.n1 + (newCat.n2?' > '+newCat.n2:'') + (newCat.n3?' > '+newCat.n3:''))
-      else toast_('✓ Item actualizado')
-      return true
-    } catch(e) { toast_('⚠ '+e.message,'err'); return false }
+    try { await itemPut({ id, nombre, n1:newCat?newCat.n1:it.n1, n2:newCat?newCat.n2:it.n2, n3:newCat?newCat.n3:it.n3, unidad_default:unidad||it.unidad_default }); refetchItems(); toast_(newCat?('✓ Reubicado en '+newCat.n1+(newCat.n2?' > '+newCat.n2:'')):('✓ Ítem actualizado')); return true } catch(e) { toast_('⚠ '+e.message,'err'); return false }
   }, [items,refetchItems])
   const delItem  = useCallback(async (id,label) => {
     try { await itemDel(id); refetchItems(); toast_(`✓ "${label}" eliminado`); return true } catch(e) { toast_('⚠ '+e.message,'err'); return e.message }
