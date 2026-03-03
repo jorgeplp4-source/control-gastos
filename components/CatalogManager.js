@@ -111,22 +111,19 @@ function AddRow({ placeholder, withIcon, withUnit, units, onAdd, disabled }) {
 }
 
 // ── MRow — fila individual (categoría o ítem) ─────────────────────────────────
-function MRow({ id, label, icon, unit, count, selected, color, onSelect, onEdit, onDelete, isItem, units, subruta, categories, onMoveItem }) {
+function MRow({ id, label, icon, unit, count, selected, color, onSelect, onEdit, onDelete, isItem, units, subruta, categories }) {
   const [editing, setEditing] = useState(false)
   const [ev,  setEv]  = useState(label)
   const [eu,  setEu]  = useState(unit || '')
-  // Para ítems: reubicar categoría
+  const [ds,  setDs]  = useState(null)  // null | 'confirm' | 'err:msg'
+  const [busy,setBusy]= useState(false)
   const [en1, setEn1] = useState('')
   const [en2, setEn2] = useState('')
   const [en3, setEn3] = useState('')
-  const [ds,  setDs]  = useState(null)
-  const [busy,setBusy]= useState(false)
-  // Drag
   const [dragging, setDragging] = useState(false)
   const inp = useRef(null)
   useEffect(() => { if (editing) setTimeout(()=>inp.current?.focus(), 40) }, [editing])
 
-  // Opciones en cascada para reubicar
   const n1Opts = useMemo(() => {
     if (!categories) return []
     const seen = new Set()
@@ -143,20 +140,10 @@ function MRow({ id, label, icon, unit, count, selected, color, onSelect, onEdit,
     return categories.filter(r => r.n1 === en1 && r.n2 === en2 && r.n3 && !seen.has(r.n3) && seen.add(r.n3)).map(r => r.n3).sort()
   }, [categories, en1, en2])
 
-  const startEdit = (e) => {
-    e.stopPropagation()
-    setEditing(true)
-    setEv(label)
-    setEu(unit || '')
-    setEn1('')
-    setEn2('')
-    setEn3('')
-  }
-
   const saveEdit = async () => {
     const nameChanged = ev.trim() && ev.trim() !== label
     const unitChanged = isItem && eu !== (unit || '')
-    const catChanged  = isItem && (en1 !== '')
+    const catChanged  = isItem && en1 !== ''
     if ((!nameChanged && !unitChanged && !catChanged) || busy) return
     setBusy(true)
     const ok = await onEdit(id,
@@ -165,9 +152,8 @@ function MRow({ id, label, icon, unit, count, selected, color, onSelect, onEdit,
       catChanged ? { n1: en1, n2: en2 || null, n3: en3 || null } : undefined
     )
     setBusy(false)
-    if (ok) setEditing(false); else setEv(label)
+    if (ok) { setEditing(false); setEn1(''); setEn2(''); setEn3('') } else setEv(label)
   }
-
   const confirmDel = async () => {
     setBusy(true); const r = await onDelete(id, label); setBusy(false)
     if (r !== true) setDs('err:' + r); else setDs(null)
@@ -183,11 +169,11 @@ function MRow({ id, label, icon, unit, count, selected, color, onSelect, onEdit,
   )
   if (ds==='confirm') return (
     <div style={{ margin:'2px 4px', padding:'7px 10px', background:'#fff7ed', border:'1px solid #fed7aa', borderRadius:8, fontSize:11 }}>
-      <div style={{ fontWeight:700, color:'#c2410c', marginBottom:4 }}>Eliminar "{label}"?</div>
+      <div style={{ fontWeight:700, color:'#c2410c', marginBottom:4 }}>¿Eliminar "{label}"?</div>
       <div style={{ display:'flex', gap:5 }}>
         <button onClick={confirmDel} disabled={busy}
           style={{ padding:'3px 10px', border:'none', borderRadius:5, background:'#ef4444', color:'#fff', fontWeight:700, fontSize:11, cursor:'pointer' }}>
-          {busy?'...':'Si, eliminar'}
+          {busy?'…':'Sí, eliminar'}
         </button>
         <button onClick={()=>setDs(null)}
           style={{ padding:'3px 8px', border:'1px solid var(--border)', borderRadius:5, background:'transparent', color:'var(--text-muted)', fontSize:11, cursor:'pointer' }}>
@@ -197,36 +183,33 @@ function MRow({ id, label, icon, unit, count, selected, color, onSelect, onEdit,
     </div>
   )
 
-  const inpS = { flex:1, padding:'3px 7px', border:'1.5px solid var(--accent)', borderRadius:5, background:'var(--surface)', color:'var(--text-primary)', fontFamily:'inherit', fontSize:13, outline:'none', minWidth:0 }
-  const selS = { padding:'3px 6px', border:'1px solid var(--border)', borderRadius:5, background:'var(--surface)', color:'var(--text-primary)', fontFamily:'inherit', fontSize:11, outline:'none', cursor:'pointer' }
-
   return (
     <div className="mrow"
       draggable={isItem && !editing}
-      onDragStart={e => { if (!isItem) return; setDragging(true); e.dataTransfer.setData('itemId', id); e.dataTransfer.setData('itemLabel', label); e.dataTransfer.effectAllowed = 'move' }}
+      onDragStart={e => { if (!isItem) return; setDragging(true); e.dataTransfer.setData('text/plain', id); e.dataTransfer.effectAllowed = 'move' }}
       onDragEnd={() => setDragging(false)}
       onClick={()=>!editing&&onSelect?.()}
       style={{
         display:'flex', alignItems:'center', gap:7, padding:'7px 10px',
-        cursor: editing ? 'default' : isItem ? 'grab' : 'pointer',
+        cursor: editing ? 'default' : isItem ? 'grab' : onSelect ? 'pointer' : 'default',
         borderRadius:8, margin:'1px 4px', position:'relative',
-        background: dragging ? 'var(--accent-light)' : selected ? (c.light||'var(--accent-light,#eff6ff)') : 'transparent',
+        background: selected ? (c.light||'var(--accent-light,#eff6ff)') : 'transparent',
         border: `1.5px solid ${dragging ? 'var(--accent)' : selected?(c.bg||'var(--accent)'):'transparent'}`,
         opacity: dragging ? 0.5 : 1,
         transition:'background .1s',
       }}>
-      {isItem && !editing && <span style={{ fontSize:10, color:'var(--text-muted)', cursor:'grab', flexShrink:0 }} title="Arrastrar para reubicar">⠿</span>}
+      {isItem && !editing && <span style={{ fontSize:10, color:'var(--text-muted)', cursor:'grab', flexShrink:0, marginRight:-3 }} title="Arrastrar para reubicar">⠿</span>}
       {icon
         ? <span style={{ fontSize:14, flexShrink:0 }}>{icon}</span>
         : <span style={{ width:7, height:7, borderRadius:'50%', background:c.bg, flexShrink:0 }}/>}
 
       {editing ? (
-        <div style={{ flex:1, display:'flex', flexDirection:'column', gap:6, minWidth:0 }} onClick={e=>e.stopPropagation()}>
-          {/* Nombre */}
+        <div style={{ flex:1, display:'flex', flexDirection:'column', gap:4, minWidth:0 }} onClick={e=>e.stopPropagation()}>
           <div style={{ display:'flex', gap:4 }}>
             <input ref={inp} value={ev} onChange={e=>setEv(e.target.value)}
               onKeyDown={e=>{ if(e.key==='Enter') saveEdit(); if(e.key==='Escape'){setEditing(false);setEv(label)} }}
-              style={inpS}/>
+              style={{ flex:1, padding:'3px 7px', border:'1.5px solid var(--accent)', borderRadius:5,
+                background:'var(--surface)', color:'var(--text-primary)', fontFamily:'inherit', fontSize:13, outline:'none', minWidth:0 }}/>
             <button onClick={saveEdit} disabled={busy}
               style={{ width:22, height:22, border:'none', borderRadius:4, background:'var(--accent)', color:'#fff', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
               {busy ? <IconSpinner size={10} style={{ animation:'spin .8s linear infinite' }}/> : <IconCheck size={10}/>}
@@ -236,194 +219,85 @@ function MRow({ id, label, icon, unit, count, selected, color, onSelect, onEdit,
               <IconCerrar size={10}/>
             </button>
           </div>
-          {/* Unidad */}
           {isItem && (
             <div style={{ display:'flex', alignItems:'center', gap:5 }}>
-              <span style={{ fontSize:10, color:'var(--text-muted)', fontWeight:600, flexShrink:0 }}>Unidad:</span>
-              <select value={eu} onChange={e=>setEu(e.target.value)} style={selS}>
+              <span style={{ fontSize:10, color:'var(--text-muted)', fontWeight:600 }}>Unidad:</span>
+              <select value={eu} onChange={e=>setEu(e.target.value)}
+                style={{ flex:1, padding:'2px 6px', border:'1px solid var(--border)', borderRadius:4,
+                  background:'var(--surface)', color:'var(--text-primary)', fontFamily:'inherit', fontSize:11, outline:'none' }}>
                 {(units?.length ? units : ['unidad','kg','g','l','ml','docena','caja','pack']).map(u=>(
                   <option key={u} value={u}>{u}</option>
                 ))}
               </select>
             </div>
           )}
-          {/* Reubicar categoría (solo ítems) */}
           {isItem && categories && (
-            <div style={{ borderTop:'1px dashed var(--border)', paddingTop:6 }}>
-              <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', marginBottom:5, textTransform:'uppercase', letterSpacing:'.04em' }}>
-                Reubicar en otra categoria
+            <div style={{ borderTop:'1px dashed var(--border)', paddingTop:5, marginTop:2 }}>
+              <div style={{ fontSize:9, fontWeight:700, color:'var(--text-muted)', marginBottom:4, textTransform:'uppercase', letterSpacing:'.05em' }}>
+                Mover a otra categoría
               </div>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:4 }}>
-                <select value={en1} onChange={e=>{setEn1(e.target.value);setEn2('');setEn3('')}} style={selS}>
-                  <option value="">Tipo (N1)</option>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:3 }}>
+                <select value={en1} onChange={e=>{setEn1(e.target.value);setEn2('');setEn3('')}}
+                  style={{ padding:'2px 5px', border:'1px solid var(--border)', borderRadius:4, background:'var(--surface)', color:'var(--text-primary)', fontFamily:'inherit', fontSize:10, outline:'none', cursor:'pointer' }}>
+                  <option value="">Tipo…</option>
                   {n1Opts.map(o=><option key={o} value={o}>{o}</option>)}
                 </select>
-                <select value={en2} onChange={e=>{setEn2(e.target.value);setEn3('')}} style={selS} disabled={!en1}>
-                  <option value="">Area (N2)</option>
+                <select value={en2} onChange={e=>{setEn2(e.target.value);setEn3('')}} disabled={!en1}
+                  style={{ padding:'2px 5px', border:'1px solid var(--border)', borderRadius:4, background:'var(--surface)', color:'var(--text-primary)', fontFamily:'inherit', fontSize:10, outline:'none', cursor:'pointer', opacity:!en1?.4:1 }}>
+                  <option value="">Área…</option>
                   {n2Opts.map(o=><option key={o} value={o}>{o}</option>)}
                 </select>
-                <select value={en3} onChange={e=>setEn3(e.target.value)} style={selS} disabled={!en2}>
-                  <option value="">Subcateg. (N3)</option>
+                <select value={en3} onChange={e=>setEn3(e.target.value)} disabled={!en2}
+                  style={{ padding:'2px 5px', border:'1px solid var(--border)', borderRadius:4, background:'var(--surface)', color:'var(--text-primary)', fontFamily:'inherit', fontSize:10, outline:'none', cursor:'pointer', opacity:!en2?.4:1 }}>
+                  <option value="">Subcateg…</option>
                   {n3Opts.map(o=><option key={o} value={o}>{o}</option>)}
                 </select>
               </div>
-              {en1 && (
-                <div style={{ fontSize:10, color:'var(--accent)', marginTop:4, fontStyle:'italic' }}>
-                  Nuevo destino: {en1}{en2?' > '+en2:''}{en3?' > '+en3:''}
-                </div>
-              )}
+              {en1 && <div style={{ fontSize:9, color:'var(--accent)', marginTop:3, fontStyle:'italic' }}>
+                → {en1}{en2?' › '+en2:''}{en3?' › '+en3:''}
+              </div>}
             </div>
           )}
         </div>
       ) : (
-        <div style={{ flex:1, minWidth:0 }}>
-          <div style={{ fontSize:13, fontWeight:600, color:'var(--text-primary)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{label}</div>
-          {subruta && <div style={{ fontSize:10, color:'var(--text-muted)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{subruta}</div>}
-          {unit && <div style={{ fontSize:10, color:'var(--text-muted)' }}>{unit}</div>}
-        </div>
-      )}
-
-      {!editing && (
-        <div className="mrow-actions" style={{ display:'flex', gap:2, flexShrink:0, opacity:0, transition:'opacity .12s', position:'absolute', right:8 }}>
-          {count !== undefined && <span style={{ fontSize:10, color:'var(--text-muted)', marginRight:4, fontFamily:'monospace' }}>{count}</span>}
-          <button onClick={startEdit}
-            style={{ width:22, height:22, border:'none', borderRadius:4, background:'transparent', color:'var(--text-muted)', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
-            <IconEditar size={12} aria-hidden="true"/>
-          </button>
-          <button onClick={e=>{e.stopPropagation();setDs('confirm')}}
-            style={{ width:22, height:22, border:'none', borderRadius:4, background:'transparent', color:'var(--text-muted)', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
-            <IconEliminar size={12} aria-hidden="true"/>
-          </button>
-        </div>
-      )}
-    </div>
-  )
-}
-
-function AllItemsList({ items, units, categories, onEditItem, onDeleteItem, refetchItems }) {
-  const [localQ, setLocalQ] = useState('')
-  const [dropTarget, setDropTarget] = useState(null)
-
-  const filtered = useMemo(() => {
-    if (!localQ) return items
-    const ql = localQ.toLowerCase()
-    return items.filter(it =>
-      it.nombre.toLowerCase().includes(ql) ||
-      (it.n1||'').toLowerCase().includes(ql) ||
-      (it.n2||'').toLowerCase().includes(ql) ||
-      (it.n3||'').toLowerCase().includes(ql)
-    )
-  }, [items, localQ])
-
-  const grouped = useMemo(() => {
-    const map = new Map()
-    filtered.forEach(it => {
-      const key = it.n1 || '(Sin tipo)'
-      if (!map.has(key)) map.set(key, [])
-      map.get(key).push(it)
-    })
-    return [...map.entries()]
-  }, [filtered])
-
-  const handleDrop = async (e, targetN1, targetN2, targetN3) => {
-    e.preventDefault()
-    setDropTarget(null)
-    const itemId = e.dataTransfer.getData('itemId')
-    if (!itemId) return
-    const it = items.find(i => i.id === itemId || i.id === parseInt(itemId))
-    if (!it) return
-    if (it.n1 === targetN1 && it.n2 === (targetN2||null) && it.n3 === (targetN3||null)) return
-    try {
-      const r = await fetch('/api/items', { method:'PUT', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ id: it.id, nombre: it.nombre, n1: targetN1, n2: targetN2||null, n3: targetN3||null, unidad_default: it.unidad_default }) })
-      const d = await r.json()
-      if (!r.ok) throw new Error(d.error)
-      refetchItems()
-    } catch(e) { console.error(e) }
-  }
-
-  const dropStyle = (key) => ({
-    outline: dropTarget === key ? '2px dashed var(--accent)' : 'none',
-    background: dropTarget === key ? 'var(--accent-light)' : 'transparent',
-    borderRadius: 6, transition: 'all .1s'
-  })
-
-  return (
-    <div style={{ display:'flex', flexDirection:'column', height:'100%' }}>
-      <div style={{ padding:'8px 10px', borderBottom:'1px solid var(--border)', background:'var(--surface2)', flexShrink:0 }}>
-        <div style={{ position:'relative' }}>
-          <IconBuscar size={12} style={{ position:'absolute', left:8, top:'50%', transform:'translateY(-50%)', color:'var(--text-muted)', pointerEvents:'none' }}/>
-          <input value={localQ} onChange={e=>setLocalQ(e.target.value)} placeholder="Buscar item, tipo, area..."
-            style={{ width:'100%', padding:'5px 26px', border:'1.5px solid var(--border)', borderRadius:6, background:'var(--surface)', color:'var(--text-primary)', fontFamily:'inherit', fontSize:12, outline:'none', boxSizing:'border-box' }}/>
-          {localQ && <button onClick={()=>setLocalQ('')} style={{ position:'absolute', right:5, top:'50%', transform:'translateY(-50%)', border:'none', background:'none', cursor:'pointer', color:'var(--text-muted)', padding:2, display:'flex' }}><IconCerrar size={10}/></button>}
-        </div>
-        <div style={{ fontSize:10, color:'var(--text-muted)', marginTop:4, fontStyle:'italic' }}>Arrasta un item sobre una categoria para reubicar</div>
-      </div>
-
-      <div style={{ flex:1, overflowY:'auto' }}>
-        {grouped.length === 0 ? (
-          <Empty label="Sin items" cta={localQ ? `Sin resultados para "${localQ}"` : 'Agregar items desde la vista de columnas'}/>
-        ) : grouped.map(([n1, itList]) => {
-          const col = N1_COLORS[n1] || { bg:'#64748b', light:'var(--surface2)', text:'#64748b' }
-          const dropKey = `n1:${n1}`
-          return (
-            <div key={n1}
-              onDragOver={e=>{e.preventDefault();setDropTarget(dropKey)}}
-              onDragLeave={e=>{if(!e.currentTarget.contains(e.relatedTarget))setDropTarget(null)}}
-              onDrop={e=>handleDrop(e, n1, null, null)}>
-              <div style={{ padding:'6px 14px 3px', display:'flex', alignItems:'center', gap:6, position:'sticky', top:0, background:'var(--surface)', zIndex:1, borderBottom:'1px solid var(--border)', ...dropStyle(dropKey) }}>
-                <span style={{ width:7, height:7, borderRadius:'50%', background:col.bg, flexShrink:0 }}/>
-                <span style={{ fontSize:10, fontWeight:800, textTransform:'uppercase', letterSpacing:'.06em', color:col.text||col.bg }}>{n1}</span>
-                <span style={{ fontSize:10, color:'var(--text-muted)', fontFamily:'monospace' }}>{itList.length}</span>
-                {dropTarget === dropKey && <span style={{ fontSize:9, color:'var(--accent)', fontWeight:700, marginLeft:'auto' }}>Soltar aqui</span>}
-              </div>
-              {itList.map(it => (
-                <MRow key={it.id} id={it.id} label={it.nombre} unit={it.unidad_default}
-                  isItem selected={false} units={units} categories={categories}
-                  subruta={[it.n2,it.n3].filter(Boolean).join(' > ') || undefined}
-                  color={col}
-                  onEdit={async (id, nombre, unidad, newCat) => {
-                    try {
-                      const r = await fetch('/api/items', { method:'PUT', headers:{'Content-Type':'application/json'},
-                        body: JSON.stringify({ id, nombre,
-                          n1: newCat ? newCat.n1 : it.n1,
-                          n2: newCat ? newCat.n2 : it.n2,
-                          n3: newCat ? newCat.n3 : it.n3,
-                          unidad_default: unidad||it.unidad_default }) })
-                      const d = await r.json()
-                      if (!r.ok) throw new Error(d.error)
-                      refetchItems(); return true
-                    } catch(e) { return false }
-                  }}
-                  onDelete={async (id, label) => {
-                    try {
-                      const r = await fetch(`/api/items?id=${id}`, { method:'DELETE' })
-                      const d = await r.json()
-                      if (!r.ok) throw new Error(d.error)
-                      refetchItems(); return true
-                    } catch(e) { return e.message }
-                  }}
-                />
-              ))}
+        <>
+          <div style={{ flex:1, minWidth:0 }}>
+            <div style={{ fontSize:13, fontWeight:selected?700:500, color:selected?(c.text||c.bg):'var(--text-primary)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+              {label}
+              {unit && <span style={{ marginLeft:5, fontSize:10, color:'var(--text-muted)', fontWeight:400 }}>{unit}</span>}
             </div>
-          )
-        })}
-      </div>
-
-      <div style={{ padding:'6px 12px', borderTop:'1px solid var(--border)', background:'var(--surface2)', flexShrink:0 }}>
-        <span style={{ fontSize:11, color:'var(--text-muted)' }}>
-          {filtered.length} item{filtered.length!==1?'s':''}{localQ?` (filtrado de ${items.length})`:''
-        }</span>
-      </div>
+            {subruta && (
+              <div style={{ fontSize:10, color:'var(--text-muted)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', marginTop:1 }}>{subruta}</div>
+            )}
+          </div>
+          {count>0 && <span style={{ fontSize:10, color:'var(--text-muted)', fontFamily:'monospace', flexShrink:0 }}>{count}</span>}
+          {!isItem && onSelect && <IconCaretRight size={10} color="var(--text-muted)" style={{ flexShrink:0 }} aria-hidden="true"/>}
+          <div className="mrow-actions" style={{ display:'none', gap:2, position:'absolute', right:8, top:'50%', transform:'translateY(-50%)',
+            background:selected?(c.light||'var(--surface2)'):'var(--surface)', padding:'0 2px', borderRadius:5 }}>
+            <button onClick={e=>{e.stopPropagation();setEditing(true)}} title="Editar"
+              style={{ width:22, height:22, border:'none', borderRadius:4, background:'transparent', cursor:'pointer', color:'var(--text-muted)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+              <IconEditar size={12} aria-hidden="true"/>
+            </button>
+            <button onClick={e=>{e.stopPropagation();setDs('confirm')}} title="Eliminar"
+              style={{ width:22, height:22, border:'none', borderRadius:4, background:'transparent', cursor:'pointer', color:'#ef4444', display:'flex', alignItems:'center', justifyContent:'center' }}>
+              <IconEliminar size={12} aria-hidden="true"/>
+            </button>
+          </div>
+        </>
+      )}
     </div>
   )
 }
 
 // ── McCol — columna del grid ──────────────────────────────────────────────────
-function McCol({ title, dot, idx, mobileIdx, children, onAdd, addPh, addIcon, addUnit, units, addDis }) {
+function McCol({ title, dot, idx, mobileIdx, children, onAdd, addPh, addIcon, addUnit, units, addDis, onDragOver, onDragLeave, onDrop, dropActive }) {
   return (
     <div className={`mc-col ${mobileIdx===idx?'mc-active':''}`}
-      style={{ display:'flex', flexDirection:'column', borderRight:'1px solid var(--border)', minHeight:0 }}>
+      onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}
+      style={{ display:'flex', flexDirection:'column', borderRight:'1px solid var(--border)', minHeight:0,
+        outline: dropActive ? '2px dashed var(--accent)' : 'none',
+        background: dropActive ? 'var(--accent-light,#eff6ff)' : 'transparent',
+        transition:'background .12s' }}>
       <div style={{ padding:'8px 12px', borderBottom:'1px solid var(--border)', background:'var(--surface2)', flexShrink:0, display:'flex', alignItems:'center', gap:6 }}>
         {dot && <span style={{ width:7, height:7, borderRadius:'50%', background:dot, flexShrink:0 }}/>}
         <span style={{ fontSize:10, fontWeight:800, textTransform:'uppercase', letterSpacing:'.08em', color:'var(--text-muted)' }}>{title}</span>
@@ -508,18 +382,105 @@ function SearchResults({ categories, items, q, onNavigate }) {
 }
 
 // ── AllItemsList — vista completa de todos los ítems ─────────────────────────
+function AllItemsList({ items, units, onEditItem, onDeleteItem, refetchItems }) {
+  const [localQ, setLocalQ] = useState('')
 
+  const filtered = useMemo(() => {
+    if (!localQ) return items
+    const ql = localQ.toLowerCase()
+    return items.filter(it =>
+      it.nombre.toLowerCase().includes(ql) ||
+      (it.n1||'').toLowerCase().includes(ql) ||
+      (it.n2||'').toLowerCase().includes(ql) ||
+      (it.n3||'').toLowerCase().includes(ql)
+    )
+  }, [items, localQ])
+
+  // Agrupar por N1 para mostrar secciones
+  const grouped = useMemo(() => {
+    const map = new Map()
+    filtered.forEach(it => {
+      const key = it.n1 || '(Sin tipo)'
+      if (!map.has(key)) map.set(key, [])
+      map.get(key).push(it)
+    })
+    return [...map.entries()]
+  }, [filtered])
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', height:'100%' }}>
+      <div style={{ padding:'8px 10px', borderBottom:'1px solid var(--border)', background:'var(--surface2)', flexShrink:0 }}>
+        <div style={{ position:'relative' }}>
+          <IconBuscar size={12} style={{ position:'absolute', left:8, top:'50%', transform:'translateY(-50%)', color:'var(--text-muted)', pointerEvents:'none' }}/>
+          <input value={localQ} onChange={e=>setLocalQ(e.target.value)} placeholder="Buscar ítem, tipo, área…"
+            style={{ width:'100%', padding:'5px 26px', border:'1.5px solid var(--border)', borderRadius:6, background:'var(--surface)', color:'var(--text-primary)', fontFamily:'inherit', fontSize:12, outline:'none', boxSizing:'border-box' }}/>
+          {localQ && <button onClick={()=>setLocalQ('')} style={{ position:'absolute', right:5, top:'50%', transform:'translateY(-50%)', border:'none', background:'none', cursor:'pointer', color:'var(--text-muted)', padding:2, display:'flex' }}><IconCerrar size={10}/></button>}
+        </div>
+      </div>
+
+      <div style={{ flex:1, overflowY:'auto' }}>
+        {grouped.length === 0 ? (
+          <Empty label="Sin ítems" cta={localQ ? `Sin resultados para "${localQ}"` : 'Agregar ítems desde la vista de columnas'}/>
+        ) : grouped.map(([n1, itList]) => {
+          const c = N1_COLORS[n1] || { bg:'#64748b', light:'var(--surface2)', text:'#64748b' }
+          return (
+            <div key={n1}>
+              <div style={{ padding:'6px 14px 3px', display:'flex', alignItems:'center', gap:6, position:'sticky', top:0, background:'var(--surface)', zIndex:1, borderBottom:'1px solid var(--border)' }}>
+                <span style={{ width:7, height:7, borderRadius:'50%', background:c.bg, flexShrink:0 }}/>
+                <span style={{ fontSize:10, fontWeight:800, textTransform:'uppercase', letterSpacing:'.06em', color:c.text||c.bg }}>{n1}</span>
+                <span style={{ fontSize:10, color:'var(--text-muted)', fontFamily:'monospace' }}>{itList.length}</span>
+              </div>
+              {itList.map(it => (
+                <MRow key={it.id} id={it.id} label={it.nombre} unit={it.unidad_default}
+                  isItem selected={false} units={units}
+                  subruta={[it.n2,it.n3].filter(Boolean).join(' › ') || undefined}
+                  color={c}
+                  onEdit={async (id, nombre, unidad) => {
+                    try {
+                      const r = await fetch('/api/items', { method:'PUT', headers:{'Content-Type':'application/json'},
+                        body: JSON.stringify({ id, nombre, n1:it.n1, n2:it.n2, n3:it.n3, unidad_default: unidad||it.unidad_default }) })
+                      const d = await r.json()
+                      if (!r.ok) throw new Error(d.error)
+                      refetchItems(); return true
+                    } catch(e) { return false }
+                  }}
+                  onDelete={async (id, label) => {
+                    try {
+                      const r = await fetch(`/api/items?id=${id}`, { method:'DELETE' })
+                      const d = await r.json()
+                      if (!r.ok) throw new Error(d.error)
+                      refetchItems(); return true
+                    } catch(e) { return e.message }
+                  }}
+                />
+              ))}
+            </div>
+          )
+        })}
+      </div>
+
+      <div style={{ padding:'6px 12px', borderTop:'1px solid var(--border)', background:'var(--surface2)', flexShrink:0 }}>
+        <span style={{ fontSize:11, color:'var(--text-muted)' }}>
+          {filtered.length} ítem{filtered.length!==1?'s':''}{localQ?` (filtrado de ${items.length})`:''}
+        </span>
+      </div>
+    </div>
+  )
+}
+
+// ── Main CatalogManager ───────────────────────────────────────────────────────
 export default function CatalogManager() {
   const { categories, loading: catLoading, refetch: refetchCats } = useCategories()
   const { items, loading: itemLoading, refetch: refetchItems } = useItems()
   const { units } = useUnits()
 
-  const [s1, setS1] = useState(null)   // nombre N1 seleccionado
-  const [s2, setS2] = useState(null)   // nombre N2
-  const [s3, setS3] = useState(null)   // nombre N3
+  const [s1, setS1] = useState(null)
+  const [s2, setS2] = useState(null)
+  const [s3, setS3] = useState(null)
   const [s1id, setS1id] = useState(null)
   const [s2id, setS2id] = useState(null)
   const [s3id, setS3id] = useState(null)
+  const [dropCol, setDropCol] = useState(null)
   const [q,    setQ]    = useState('')
   const [mc,   setMc]   = useState(0)
   const [view, setView] = useState('columns')
@@ -528,6 +489,20 @@ export default function CatalogManager() {
   const { toast, show: toast_ } = useToast()
 
   const refetch = useCallback(() => { refetchCats(); refetchItems() }, [refetchCats, refetchItems])
+
+  const handleColDrop = useCallback(async (e, targetN1, targetN2, targetN3) => {
+    e.preventDefault(); setDropCol(null)
+    const itemId = e.dataTransfer.getData('text/plain')
+    if (!itemId) return
+    const it = items.find(i => String(i.id) === String(itemId))
+    if (!it) return
+    if (it.n1 === targetN1 && it.n2 === (targetN2||null) && it.n3 === (targetN3||null)) return
+    try {
+      await itemPut({ id: it.id, nombre: it.nombre, n1: targetN1, n2: targetN2||null, n3: targetN3||null, unidad_default: it.unidad_default })
+      refetchItems()
+      toast_('✓ Movido a ' + targetN1 + (targetN2?' › '+targetN2:'') + (targetN3?' › '+targetN3:''))
+    } catch(e) { toast_('⚠ '+e.message,'err') }
+  }, [items, itemPut, refetchItems])
 
   const tree = useMemo(() => buildTree(categories), [categories])
 
@@ -595,7 +570,17 @@ export default function CatalogManager() {
   const editItem = useCallback(async (id, nombre, unidad, newCat) => {
     const it = items.find(i=>i.id===id)
     if (!it) return false
-    try { await itemPut({ id, nombre, n1:newCat?newCat.n1:it.n1, n2:newCat?newCat.n2:it.n2, n3:newCat?newCat.n3:it.n3, unidad_default:unidad||it.unidad_default }); refetchItems(); toast_(newCat?('✓ Reubicado en '+newCat.n1+(newCat.n2?' > '+newCat.n2:'')+(newCat.n3?' > '+newCat.n3:'')):'✓ Ítem actualizado'); return true } catch(e) { toast_('⚠ '+e.message,'err'); return false }
+    try {
+      await itemPut({ id, nombre,
+        n1: newCat ? newCat.n1 : it.n1,
+        n2: newCat ? newCat.n2 : it.n2,
+        n3: newCat ? newCat.n3 : it.n3,
+        unidad_default: unidad||it.unidad_default,
+      })
+      refetchItems()
+      toast_(newCat ? ('✓ Movido a ' + newCat.n1 + (newCat.n2?' › '+newCat.n2:'') + (newCat.n3?' › '+newCat.n3:'')) : '✓ Ítem actualizado')
+      return true
+    } catch(e) { toast_('⚠ '+e.message,'err'); return false }
   }, [items,refetchItems])
   const delItem  = useCallback(async (id,label) => {
     try { await itemDel(id); refetchItems(); toast_(`✓ "${label}" eliminado`); return true } catch(e) { toast_('⚠ '+e.message,'err'); return e.message }
@@ -710,7 +695,7 @@ export default function CatalogManager() {
       {/* ── Vista lista completa de ítems ─────────────────────────────────── */}
       {view==='list' && (
         <div style={{ border:'1px solid var(--border)', borderTop:'none', borderRadius:'0 0 12px 12px', overflow:'hidden', background:'var(--surface)', display:'flex', flexDirection:'column' }}>
-          <AllItemsList items={items} units={units} categories={categories} onEditItem={editItem} onDeleteItem={delItem} refetchItems={refetchItems}/>
+          <AllItemsList items={items} units={units} onEditItem={editItem} onDeleteItem={delItem} refetchItems={refetchItems}/>
         </div>
       )}
 
@@ -740,7 +725,11 @@ export default function CatalogManager() {
 
             {/* Col 1 — N1 */}
             <McCol title={COL_LABELS[0]} idx={0} mobileIdx={mc}
-              onAdd={addN1} addPh="Nombre del tipo…" addIcon addDis={false} units={units}>
+              onAdd={addN1} addPh="Nombre del tipo…" addIcon addDis={false} units={units}
+              onDragOver={e=>{e.preventDefault();setDropCol('n1-'+s1)}}
+              onDragLeave={()=>setDropCol(null)}
+              onDrop={e=>s1&&handleColDrop(e,s1,null,null)}
+              dropActive={dropCol===('n1-'+s1)&&!!s1}>
               {n1List.length===0
                 ? <Empty label="Sin tipos todavía" cta="Usá ＋ para agregar"/>
                 : n1List.map(n1=>(
@@ -755,7 +744,11 @@ export default function CatalogManager() {
 
             {/* Col 2 — N2 */}
             <McCol title={COL_LABELS[1]} dot={selColor?.bg} idx={1} mobileIdx={mc}
-              onAdd={s1id?addN2:undefined} addPh="Nombre del área…" addIcon addDis={!s1id} units={units}>
+              onAdd={s1id?addN2:undefined} addPh="Nombre del área…" addIcon addDis={!s1id} units={units}
+              onDragOver={e=>{e.preventDefault();setDropCol('n2-'+s2)}}
+              onDragLeave={()=>setDropCol(null)}
+              onDrop={e=>s1&&s2&&handleColDrop(e,s1,s2,null)}
+              dropActive={dropCol===('n2-'+s2)&&!!s2}>
               {!s1 ? <Empty label="Seleccioná un Tipo" cta="← izquierda"/>
               : n2List.length===0 ? <Empty label="Sin áreas" cta="Opcional — podés agregar ítems directo al Tipo"/>
               : n2List.map(n2=>(
@@ -770,7 +763,11 @@ export default function CatalogManager() {
 
             {/* Col 3 — N3 */}
             <McCol title={COL_LABELS[2]} idx={2} mobileIdx={mc}
-              onAdd={s2id?addN3:undefined} addPh="Nombre de subcategoría…" addDis={!s2id} units={units}>
+              onAdd={s2id?addN3:undefined} addPh="Nombre de subcategoría…" addDis={!s2id} units={units}
+              onDragOver={e=>{e.preventDefault();setDropCol('n3-'+s3)}}
+              onDragLeave={()=>setDropCol(null)}
+              onDrop={e=>s1&&s2&&s3&&handleColDrop(e,s1,s2,s3)}
+              dropActive={dropCol===('n3-'+s3)&&!!s3}>
               {!s2 ? <Empty label="Seleccioná un Área" cta="← anterior"/>
               : n3List.length===0 ? <Empty label="Sin subcategorías" cta="Opcional — podés agregar ítems al Área"/>
               : n3List.map(n3=>(
