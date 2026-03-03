@@ -369,13 +369,17 @@ function AllItemsList({ items, units, categories, onEditItem, onDeleteItem, refe
               </div>
               {itList.map(it => (
                 <MRow key={it.id} id={it.id} label={it.nombre} unit={it.unidad_default}
-                  isItem selected={false} units={units}
+                  isItem selected={false} units={units} categories={categories}
                   subruta={[it.n2,it.n3].filter(Boolean).join(' › ') || undefined}
                   color={c}
-                  onEdit={async (id, nombre, unidad) => {
+                  onEdit={async (id, nombre, unidad, newCat) => {
                     try {
                       const r = await fetch('/api/items', { method:'PUT', headers:{'Content-Type':'application/json'},
-                        body: JSON.stringify({ id, nombre, n1:it.n1, n2:it.n2, n3:it.n3, unidad_default: unidad||it.unidad_default }) })
+                        body: JSON.stringify({ id, nombre,
+                          n1: newCat ? newCat.n1 : it.n1,
+                          n2: newCat ? newCat.n2 : it.n2,
+                          n3: newCat ? newCat.n3 : it.n3,
+                          unidad_default: unidad||it.unidad_default }) })
                       const d = await r.json()
                       if (!r.ok) throw new Error(d.error)
                       refetchItems(); return true
