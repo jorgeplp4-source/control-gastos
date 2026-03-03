@@ -1,7 +1,6 @@
 'use client'
-import React, { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { N1_COLORS } from '../lib/constants'
-import { useApp } from '../context/AppContext'
 import { useUnits } from '../lib/useUnits'
 import { useItems } from '../lib/useItems'
 import { useCategories } from '../lib/useCategories'
@@ -36,32 +35,6 @@ const MATCH_BADGE = {
   n2:    { label:'Área',         color:'#059669' },
   n1:    { label:'Tipo',         color:'#1e40af' },
   libre: { label:'Libre',        color:'#64748b' },
-}
-
-// ── DateInputWithLabel — picker nativo + etiqueta en formato configurado ───────
-function DateInputWithLabel({ value, onChange, style }) {
-  const { settings } = useApp()
-  const fmt = settings?.date_format || 'DD/MM/YYYY'
-
-  const toDisplay = (iso) => {
-    if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return ''
-    const [y, m, d] = iso.split('-')
-    if (fmt === 'MM/DD/YYYY') return `${m}/${d}/${y}`
-    if (fmt === 'YYYY-MM-DD') return `${y}-${m}-${d}`
-    return `${d}/${m}/${y}`
-  }
-
-  return (
-    <div style={{ position: 'relative' }}>
-      <input type="date" value={value} onChange={onChange} style={style}/>
-      {value && (
-        <span style={{ position:'absolute', right:10, top:'50%', transform:'translateY(-50%)',
-          fontSize:11, color:'var(--text-muted)', pointerEvents:'none', fontWeight:600 }}>
-          {toDisplay(value)}
-        </span>
-      )}
-    </div>
-  )
 }
 
 function VoicePanel({ state, transcript, resolved, onDismiss }) {
@@ -330,7 +303,7 @@ export default function ExpenseForm({ initial, onSave, onCancel }) {
               <input type="number" min="0" step="1" value={form.monto} onChange={e=>set('monto',e.target.value)} placeholder="0" style={inp}/>
             </div>
             <div><label style={lbl}>Fecha</label>
-              <DateInputWithLabel value={form.fecha} onChange={e=>set('fecha',e.target.value)} style={inp}/>
+              <input type="date" value={form.fecha} onChange={e=>set('fecha',e.target.value)} style={inp}/>
             </div>
           </div>
 

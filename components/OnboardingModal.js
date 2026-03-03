@@ -13,12 +13,6 @@ const CURRENCIES = [
   { code:'MXN', symbol:'$',   name:'Peso mexicano'     },
 ]
 
-const DATE_FORMATS = [
-  { value:'DD/MM/YYYY', label:'DD/MM/AAAA', ejemplo:'31/12/2025' },
-  { value:'MM/DD/YYYY', label:'MM/DD/AAAA', ejemplo:'12/31/2025' },
-  { value:'YYYY-MM-DD', label:'AAAA-MM-DD', ejemplo:'2025-12-31' },
-]
-
 const N1_OPTS = ['Variables','Fijos','Extraordinarios','Imprevistos']
 
 const today = () => new Date().toISOString().split('T')[0]
@@ -105,30 +99,7 @@ function PasoConfig({ config, setConfig }) {
           </select>
         </div>
 
-        {/* Formato de fecha */}
-        <div>
-          <label style={lbl}>Formato de fecha</label>
-          <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-            {DATE_FORMATS.map(df => (
-              <label key={df.value} style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 14px',
-                borderRadius:10, border:`2px solid ${config.date_format===df.value?'var(--accent)':'var(--border)'}`,
-                background:config.date_format===df.value?'var(--accent-light)':'var(--surface2)',
-                cursor:'pointer', transition:'all .12s' }}>
-                <input type="radio" name="df_onb" value={df.value}
-                  checked={config.date_format===df.value}
-                  onChange={()=>set('date_format',df.value)}
-                  style={{ accentColor:'var(--accent)', flexShrink:0 }}/>
-                <span style={{ fontSize:13, fontWeight:config.date_format===df.value?700:500,
-                  color:config.date_format===df.value?'var(--accent)':'var(--text-primary)' }}>
-                  {df.label}
-                </span>
-                <span style={{ fontSize:12, color:'var(--text-muted)', fontFamily:'monospace', marginLeft:'auto' }}>
-                  {df.ejemplo}
-                </span>
-              </label>
-            ))}
-          </div>
-        </div>
+
       </div>
     </div>
   )
@@ -190,14 +161,13 @@ export default function OnboardingModal({ onComplete }) {
   const supabase = createClient()
   const [paso,     setPaso]    = useState(0)
   const [saving,   setSaving]  = useState(false)
-  const [config,   setConfig]  = useState({ currency:'ARS', date_format:'DD/MM/YYYY' })
+  const [config,   setConfig]  = useState({ currency:'ARS' })
   const [gasto,    setGasto]   = useState({ n4:'', monto:'', fecha:today(), n1:'Variables' })
 
   // Sync config with existing settings
   useEffect(() => {
     if (settings) setConfig({
-      currency:    settings.currency    || 'ARS',
-      date_format: settings.date_format || 'DD/MM/YYYY',
+      currency: settings.currency || 'ARS',
     })
   }, [settings])
 

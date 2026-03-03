@@ -23,12 +23,6 @@ const CURRENCIES = [
   { code:'PYG', symbol:'₲',  name:'Guaraní paraguayo' },
 ]
 
-const DATE_FORMATS = [
-  { value:'DD/MM/YYYY', label:'DD/MM/AAAA  (31/12/2025)' },
-  { value:'MM/DD/YYYY', label:'MM/DD/AAAA  (12/31/2025)' },
-  { value:'YYYY-MM-DD', label:'AAAA-MM-DD  (2025-12-31)' },
-]
-
 const THEMES = [
   { val:'light', label:'Claro',   Icon:IconClaro   },
   { val:'dark',  label:'Oscuro',  Icon:IconOscuro  },
@@ -49,17 +43,16 @@ export default function ConfigPage() {
   const supabase = createClient()
   const { settings, saveSettings } = useApp()
   const [seccion,  setSeccion]  = useState('apariencia')
-  const [local,    setLocal]    = useState({ theme:'system', currency:'ARS', language:'es', date_format:'DD/MM/YYYY' })
+  const [local,    setLocal]    = useState({ theme:'system', currency:'ARS', language:'es' })
   const [saving,   setSaving]   = useState(false)
   const [saved,    setSaved]    = useState(false)
   const [isMobile, setIsMobile] = useState(false)
 
   useEffect(() => {
     if (settings) setLocal({
-      theme:       settings.theme       || 'system',
-      currency:    settings.currency    || 'ARS',
-      language:    settings.language    || 'es',
-      date_format: settings.date_format || 'DD/MM/YYYY',
+      theme:    settings.theme    || 'system',
+      currency: settings.currency || 'ARS',
+      language: settings.language || 'es',
     })
   }, [settings])
 
@@ -112,17 +105,7 @@ export default function ConfigPage() {
               {CURRENCIES.map(c=><option key={c.code} value={c.code}>{c.symbol} — {c.name} ({c.code})</option>)}
             </select>
           </div>
-          <div>
-            <label style={LBL}>Formato de fecha</label>
-            <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-              {DATE_FORMATS.map(df => (
-                <label key={df.value} style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px', borderRadius:10, border:`2px solid ${local.date_format===df.value?'var(--accent)':'var(--border)'}`, background:local.date_format===df.value?'var(--accent-light)':'var(--surface2)', cursor:'pointer', transition:'all .12s' }}>
-                  <input type="radio" name="date_format" value={df.value} checked={local.date_format===df.value} onChange={()=>setL('date_format',df.value)} style={{ accentColor:'var(--accent)' }} />
-                  <span style={{ fontSize:13, fontWeight:local.date_format===df.value?700:500, color:local.date_format===df.value?'var(--accent)':'var(--text-primary)', fontFamily:'monospace' }}>{df.label}</span>
-                </label>
-              ))}
-            </div>
-          </div>
+
         </Section>
       )
 
