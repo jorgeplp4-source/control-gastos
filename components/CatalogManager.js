@@ -490,20 +490,6 @@ export default function CatalogManager() {
 
   const refetch = useCallback(() => { refetchCats(); refetchItems() }, [refetchCats, refetchItems])
 
-  const handleColDrop = useCallback(async (e, targetN1, targetN2, targetN3) => {
-    e.preventDefault(); setDropCol(null)
-    const itemId = e.dataTransfer.getData('text/plain')
-    if (!itemId) return
-    const it = items.find(i => String(i.id) === String(itemId))
-    if (!it) return
-    if (it.n1 === targetN1 && it.n2 === (targetN2||null) && it.n3 === (targetN3||null)) return
-    try {
-      await itemPut({ id: it.id, nombre: it.nombre, n1: targetN1, n2: targetN2||null, n3: targetN3||null, unidad_default: it.unidad_default })
-      refetchItems()
-      toast_('✓ Movido a ' + targetN1 + (targetN2?' › '+targetN2:'') + (targetN3?' › '+targetN3:''))
-    } catch(e) { toast_('⚠ '+e.message,'err') }
-  }, [items, itemPut, refetchItems])
-
   const tree = useMemo(() => buildTree(categories), [categories])
 
   // ── Listas de categorías ────────────────────────────────────────────────────
@@ -540,6 +526,20 @@ export default function CatalogManager() {
   const itemPost = async b => { const r=await fetch('/api/items',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)}); const d=await r.json(); if(!r.ok) throw new Error(d.error||'Error'); return d }
   const itemPut  = async b => { const r=await fetch('/api/items',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)}); const d=await r.json(); if(!r.ok) throw new Error(d.error||'Error'); return d }
   const itemDel  = async id => { const r=await fetch(`/api/items?id=${id}`,{method:'DELETE'}); const d=await r.json(); if(!r.ok) throw new Error(d.error||'Error'); return d }
+
+  const handleColDrop = async (e, targetN1, targetN2, targetN3) => {
+    e.preventDefault(); setDropCol(null)
+    const itemId = e.dataTransfer.getData('text/plain')
+    if (!itemId) return
+    const it = items.find(i => String(i.id) === String(itemId))
+    if (!it) return
+    if (it.n1 === targetN1 && it.n2 === (targetN2||null) && it.n3 === (targetN3||null)) return
+    try {
+      await itemPut({ id: it.id, nombre: it.nombre, n1: targetN1, n2: targetN2||null, n3: targetN3||null, unidad_default: it.unidad_default })
+      refetchItems()
+      toast_('✓ Movido a ' + targetN1 + (targetN2?' › '+targetN2:'') + (targetN3?' › '+targetN3:''))
+    } catch(err) { toast_('⚠ '+err.message,'err') }
+  }
 
   // ── CRUD callbacks ──────────────────────────────────────────────────────────
   const addN1   = useCallback(async (nombre,icono) => {
