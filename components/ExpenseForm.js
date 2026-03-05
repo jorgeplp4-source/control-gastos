@@ -328,7 +328,7 @@ export default function ExpenseForm({ initial, onSave, onCancel }) {
               <input type="number" min="0" step="1" value={form.monto} onChange={e=>set('monto',e.target.value)} placeholder="0" style={inp}/>
             </div>
             <div><label style={lbl}>Fecha</label>
-              <DateInputWithLabel value={form.fecha} onChange={e=>set('fecha',e.target.value)} style={inp}/>
+              <input type="date" value={form.fecha} onChange={e=>set('fecha',e.target.value)} style={inp}/>
             </div>
           </div>
 
