@@ -10,7 +10,7 @@ import { useAlertas } from '../lib/useAlertas'
 import { getPeriodo } from '../lib/constants'
 import {
   IconDashboard, IconRegistrar, IconListado, IconConfig,
-  IconCerrar, IconSpinner, IconSalir, IconBilletera, IconCheck, IconDinero, IconTip, IconInflacion,
+  IconCerrar, IconSpinner, IconSalir, IconBilletera, IconCheck, IconDinero, IconTip, IconInflacion, IconCuotas,
 } from '../lib/icons'
 
 function Spinner({ label = 'Cargando…' }) {
@@ -31,6 +31,7 @@ const AsesorPage       = dynamic(() => import('../components/AsesorPage'),      
 const OnboardingModal  = dynamic(() => import('../components/OnboardingModal'),  { ssr: false })
 const ConfigPage       = dynamic(() => import('../components/ConfigPage'),       { ssr: false, loading: () => <Spinner label="Cargando configuración…" /> })
 const InflacionDashboard = dynamic(() => import('../components/InflacionDashboard'), { ssr: false, loading: () => <Spinner label="Cargando análisis de inflación…" /> })
+const CuotasDashboard    = dynamic(() => import('../components/CuotasDashboard'),    { ssr: false, loading: () => <Spinner label="Cargando cuotas…" /> })
 const NotificationsBell = dynamic(() => import('../components/NotificationsBell'), { ssr: false })
 const Onboarding       = dynamic(() => import('../components/Onboarding'),      { ssr: false })
 
@@ -40,6 +41,7 @@ const NAV_TABS = [
   { id: 'registro',      labelKey: 'nav.registro',     fallback: 'Registrar', Icon: IconRegistrar },
   { id: 'listado',       labelKey: 'nav.listado',      fallback: 'Listado',   Icon: IconListado   },
   { id: 'ingresos',      labelKey: 'nav.ingresos',     fallback: 'Ingresos',  Icon: IconDinero    },
+  { id: 'cuotas',        labelKey: 'nav.cuotas',       fallback: 'Cuotas',    Icon: IconCuotas    },
   { id: 'inflacion',     labelKey: 'nav.inflacion',    fallback: 'Inflación', Icon: IconInflacion },
   { id: 'asesor',        labelKey: 'nav.asesor',       fallback: 'Asesor',    Icon: IconTip       },
   { id: 'configuracion', labelKey: 'nav.configuracion', fallback: 'Config',   Icon: IconConfig    },
@@ -253,6 +255,7 @@ export default function Home() {
         {tab === 'registro'      && <ExpenseForm key={editTarget?.id || 'new'} initial={editTarget} onSave={handleSave} onCancel={() => { setEditTarget(null); setTab('listado') }} />}
         {tab === 'listado'       && <ListView   gastos={gastos} onDelete={handleDelete} onEdit={g => { setEditTarget(g); setTab('registro') }} onRefresh={handleRefreshGastos} />}
         {tab === 'ingresos'      && <IngresosPage />}
+        {tab === 'cuotas'        && <CuotasDashboard gastos={gastos} />}
         {tab === 'inflacion'     && <InflacionDashboard />}
         {tab === 'asesor'        && <AsesorPage gastos={gastos} />}
         {tab === 'configuracion' && <ConfigPage />}
