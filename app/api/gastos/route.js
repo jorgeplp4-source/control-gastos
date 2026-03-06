@@ -77,14 +77,39 @@ export async function POST(request) {
 }
 
 // PUT /api/gastos
+// Si body tiene compra_id (sin id), actualiza todas las cuotas de esa compra
 export async function PUT(request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await request.json()
-  const { id, _cuotas_config, ...fields } = body
+  const { id, compra_id, _cuotas_config, ...fields } = body
 
+  // ── Actualización masiva por compra_id (revisión de cuotas) ──────────────
+  if (compra_id && !id) {
+    const { n4, n1, n2, n3, unidad, pendiente_revision } = fields
+    const { data: cuotas, error: fetchErr } = await supabase
+      .from('gastos')
+      .select('id, cuota_numero, cuotas_total')
+      .eq('compra_id', compra_id)
+      .eq('user_id', user.id)
+    if (fetchErr || !cuotas?.length) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+    const total     = cuotas[0].cuotas_total
+    const baseName  = (n4 || '').replace(/\s*\(\d+\/\d+\)$/, '').trim()
+    const common    = { n1: n1||'', n2: n2||'', n3: n3||'', unidad: unidad||'unidad', pendiente_revision: pendiente_revision ?? false }
+
+    await Promise.all(cuotas.map(c =>
+      supabase.from('gastos').update({
+        ...common,
+        n4: baseName ? `${baseName} (${c.cuota_numero}/${total})` : c.n4,
+      }).eq('id', c.id).eq('user_id', user.id)
+    ))
+    return NextResponse.json({ ok: true, updated: cuotas.length })
+  }
+
+  // ── Actualización individual por id ───────────────────────────────────────
   const { data, error } = await supabase
     .from('gastos')
     .update(fields)
