@@ -149,6 +149,11 @@ export default function Home() {
     showToast('Gasto eliminado', false)
   }
 
+  const handleRefreshGastos = async () => {
+    const data = await fetch('/api/gastos').then(r => r.json())
+    setGastos(Array.isArray(data) ? data : [])
+  }
+
   const handleLogout = async () => {
     await supabase.auth.signOut()
     router.push('/login')
@@ -246,7 +251,7 @@ export default function Home() {
       <main style={{ maxWidth: 1200, margin: '0 auto', padding: '24px 16px 80px' }}>
         {tab === 'dashboard'     && <Dashboard  gastos={gastos} onNavigate={navigateTo} alertas={alertas} />}
         {tab === 'registro'      && <ExpenseForm key={editTarget?.id || 'new'} initial={editTarget} onSave={handleSave} onCancel={() => { setEditTarget(null); setTab('listado') }} />}
-        {tab === 'listado'       && <ListView   gastos={gastos} onDelete={handleDelete} onEdit={g => { setEditTarget(g); setTab('registro') }} />}
+        {tab === 'listado'       && <ListView   gastos={gastos} onDelete={handleDelete} onEdit={g => { setEditTarget(g); setTab('registro') }} onRefresh={handleRefreshGastos} />}
         {tab === 'ingresos'      && <IngresosPage />}
         {tab === 'inflacion'     && <InflacionDashboard />}
         {tab === 'asesor'        && <AsesorPage gastos={gastos} />}
