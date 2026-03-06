@@ -191,9 +191,13 @@ function PurchaseCard({ p, isExpanded, onToggle }) {
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
+const LIMIT_OPTS = [5, 10, 20, 0]   // 0 = Todas
+
 export default function CuotasDashboard({ gastos = [] }) {
   const [expanded, setExpanded] = useState(new Set())
   const [mostrarSaldadas, setMostrarSaldadas] = useState(false)
+  const [searchQ, setSearchQ]   = useState('')
+  const [limit,   setLimit]     = useState(10)
 
   const toggle = (id) => setExpanded(prev => {
     const s = new Set(prev)
@@ -258,7 +262,12 @@ export default function CuotasDashboard({ gastos = [] }) {
 
   const activas   = purchases.filter(p => p.cuotas.some(c => c.fecha && c.fecha.substring(0, 7) > CUR_MONTH))
   const saldadas  = purchases.filter(p => !p.cuotas.some(c => c.fecha && c.fecha.substring(0, 7) > CUR_MONTH))
-  const visibles  = mostrarSaldadas ? purchases : activas
+
+  const base      = mostrarSaldadas ? purchases : activas
+  const filtered  = searchQ.trim()
+    ? base.filter(p => p.nombre.toLowerCase().includes(searchQ.toLowerCase()))
+    : base
+  const visibles  = limit === 0 ? filtered : filtered.slice(0, limit)
 
   if (purchases.length === 0) {
     return (
@@ -289,28 +298,64 @@ export default function CuotasDashboard({ gastos = [] }) {
         )}
       </div>
 
-      {/* ── Filtro saldadas ───────────────────────────────────────────────── */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
-        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
-          {activas.length} compra{activas.length !== 1 ? 's' : ''} activa{activas.length !== 1 ? 's' : ''}
-          {saldadas.length > 0 && (
-            <span style={{ color: 'var(--text-muted)', fontWeight: 500, marginLeft: 8 }}>
-              · {saldadas.length} saldada{saldadas.length !== 1 ? 's' : ''}
-            </span>
+      {/* ── Buscador + controles ─────────────────────────────────────────── */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, background: 'var(--surface)', borderRadius: 12, padding: '12px 14px', border: '1px solid var(--border)' }}>
+        {/* Buscador */}
+        <div style={{ position: 'relative' }}>
+          <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 14, pointerEvents: 'none' }}>🔍</span>
+          <input
+            value={searchQ}
+            onChange={e => setSearchQ(e.target.value)}
+            placeholder="Buscar compra…"
+            style={{ width: '100%', boxSizing: 'border-box', padding: '7px 11px 7px 32px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 13, outline: 'none', background: 'var(--surface)', color: 'var(--text)', fontFamily: 'inherit' }}
+          />
+          {searchQ && (
+            <button onClick={() => setSearchQ('')}
+              style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 16, lineHeight: 1, padding: 2 }}>
+              ×
+            </button>
           )}
-        </span>
-        {saldadas.length > 0 && (
-          <button
-            onClick={() => setMostrarSaldadas(v => !v)}
-            style={{
-              fontSize: 12, padding: '5px 14px', borderRadius: 99,
-              border: '1.5px solid var(--border)', background: 'transparent',
-              color: 'var(--text-muted)', cursor: 'pointer', fontWeight: 600,
-            }}
-          >
-            {mostrarSaldadas ? 'Ocultar saldadas' : 'Ver saldadas'}
-          </button>
-        )}
+        </div>
+
+        {/* Fila de controles */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+          <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600 }}>
+            {searchQ
+              ? `${filtered.length} resultado${filtered.length !== 1 ? 's' : ''}`
+              : `${activas.length} activa${activas.length !== 1 ? 's' : ''}${saldadas.length > 0 ? ` · ${saldadas.length} saldada${saldadas.length !== 1 ? 's' : ''}` : ''}`
+            }
+            {filtered.length > visibles.length && (
+              <span style={{ color: '#d97706', marginLeft: 6 }}>· mostrando {visibles.length}</span>
+            )}
+          </span>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            {/* Límite */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+              <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600 }}>Ver:</span>
+              {LIMIT_OPTS.map(n => (
+                <button key={n} onClick={() => setLimit(n)}
+                  style={{ padding: '2px 8px', borderRadius: 99, border: `1.5px solid ${limit===n?'var(--accent)':'var(--border)'}`, background: limit===n?'var(--accent)':'transparent', color: limit===n?'#fff':'var(--text-muted)', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', transition: 'all .12s' }}>
+                  {n === 0 ? 'Todas' : n}
+                </button>
+              ))}
+            </div>
+
+            {/* Saldadas toggle */}
+            {saldadas.length > 0 && (
+              <button
+                onClick={() => setMostrarSaldadas(v => !v)}
+                style={{
+                  fontSize: 12, padding: '3px 12px', borderRadius: 99,
+                  border: '1.5px solid var(--border)', background: 'transparent',
+                  color: 'var(--text-muted)', cursor: 'pointer', fontWeight: 600, fontFamily: 'inherit',
+                }}
+              >
+                {mostrarSaldadas ? 'Ocultar saldadas' : 'Ver saldadas'}
+              </button>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* ── Lista de compras ──────────────────────────────────────────────── */}

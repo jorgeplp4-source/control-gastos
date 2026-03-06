@@ -13,17 +13,27 @@ import {
 
 // ── Columnas ─────────────────────────────────────────────────────────────────
 const ALL_COLS = [
-  { id:'monto',    label:'Monto',     field:'monto',  sortable:true  },
-  { id:'n4',       label:'Ítem',      field:'n4',     sortable:true  },
-  { id:'cantidad', label:'Cantidad',  field:null,     sortable:false },
-  { id:'n1',       label:'Tipo',      field:'n1',     sortable:true  },
-  { id:'n2',       label:'Área',      field:'n2',     sortable:true  },
-  { id:'n3',       label:'Subcateg.', field:'n3',     sortable:true  },
-  { id:'fecha',    label:'Fecha',     field:'fecha',  sortable:true  },
-  { id:'nota',     label:'Nota',      field:null,     sortable:false },
-  { id:'acciones', label:'',          field:null,     sortable:false },
+  { id:'monto',    label:'Monto',     field:'monto',      sortable:true  },
+  { id:'pago',     label:'Pago',      field:'medio_pago', sortable:true  },
+  { id:'n4',       label:'Ítem',      field:'n4',         sortable:true  },
+  { id:'cantidad', label:'Cantidad',  field:null,         sortable:false },
+  { id:'n1',       label:'Tipo',      field:'n1',         sortable:true  },
+  { id:'n2',       label:'Área',      field:'n2',         sortable:true  },
+  { id:'n3',       label:'Subcateg.', field:'n3',         sortable:true  },
+  { id:'fecha',    label:'Fecha',     field:'fecha',      sortable:true  },
+  { id:'nota',     label:'Nota',      field:null,         sortable:false },
+  { id:'acciones', label:'',          field:null,         sortable:false },
 ]
-const DEFAULT_ORDER = ['monto','n4','cantidad','n1','n2','n3','fecha','nota','acciones']
+const DEFAULT_ORDER = ['monto','pago','n4','cantidad','n1','n2','n3','fecha','nota','acciones']
+
+// ── Iconos y etiquetas de medio de pago ───────────────────────────────────────
+const PAGO_ICON  = { credito:'💳', debito:'🏧', efectivo:'💵', transferencia:'📲' }
+const PAGO_LABEL = { credito:'Créd.', debito:'Déb.', efectivo:'Efvo.', transferencia:'Transf.' }
+const PAGO_COLOR = { credito:'#7c3aed', debito:'#0284c7', efectivo:'#059669', transferencia:'#d97706' }
+const PAGO_BG    = { credito:'#ede9fe', debito:'#e0f2fe', efectivo:'#d1fae5', transferencia:'#fef3c7' }
+
+// ── Opciones de filas por página ──────────────────────────────────────────────
+const PAGE_OPTS = [25, 50, 100, 0]  // 0 = Todos
 const LS_KEY       = 'listview_col_order'
 const LS_SIDEBAR   = 'listview_sidebar_open'
 const LS_HIDDEN    = 'listview_hidden_cols'
@@ -35,9 +45,16 @@ function loadHidden(settings) {
 }
 
 function loadOrder(settings) {
-  if (settings?.col_order?.length) return settings.col_order
-  try { const s = localStorage.getItem(LS_KEY); if (s) return JSON.parse(s) } catch {}
-  return DEFAULT_ORDER
+  let order = null
+  if (settings?.col_order?.length) order = settings.col_order
+  else { try { const s = localStorage.getItem(LS_KEY); if (s) order = JSON.parse(s) } catch {} }
+  if (!order) return DEFAULT_ORDER
+  // Migración: si 'pago' no está en el orden guardado, insertarlo después de 'monto'
+  if (!order.includes('pago')) {
+    const idx = order.indexOf('monto')
+    order = [...order.slice(0, idx + 1), 'pago', ...order.slice(idx + 1)]
+  }
+  return order
 }
 
 function loadSidebar() {
@@ -698,6 +715,7 @@ export default function ListView({ gastos, onDelete, onEdit, onRefresh }) {
   const [sortField,setSortField]  = useState('fecha')
   const [sortDir,  setSortDir]    = useState('desc')
   const [confirmId,setConfirmId]  = useState(null)
+  const [pageSize, setPageSize]   = useState(50)
 
   // Recurrencia quick-edit
   const [editRecGasto, setEditRecGasto] = useState(null)
@@ -749,10 +767,11 @@ export default function ListView({ gastos, onDelete, onEdit, onRefresh }) {
     })
   }, [gastos, activeN1, activeN2, activeN3, fFrom, fTo, search, sortField, sortDir])
 
-  const total = filtered.reduce((s, g) => s + (g.monto || 0), 0)
-  const avg   = filtered.length ? total / filtered.length : 0
-  const maxG  = filtered.length ? filtered.reduce((m, g) => (g.monto||0) > (m.monto||0) ? g : m, filtered[0]) : null
+  const total    = filtered.reduce((s, g) => s + (g.monto || 0), 0)
+  const avg      = filtered.length ? total / filtered.length : 0
+  const maxG     = filtered.length ? filtered.reduce((m, g) => (g.monto||0) > (m.monto||0) ? g : m, filtered[0]) : null
   const hayFiltros = activeN1 || search || periodo !== 'mes'
+  const visible  = pageSize === 0 ? filtered : filtered.slice(0, pageSize)
 
   // Lookup recurrentes por n4+n1
   const recSet = useMemo(() => {
@@ -915,12 +934,27 @@ export default function ListView({ gastos, onDelete, onEdit, onRefresh }) {
         {/* Tabla */}
         <div style={{ ...S.card, padding:0, overflow:'hidden' }}>
           <div style={{ padding:'8px 14px', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center', gap:8, flexWrap:'wrap' }}>
-            <div style={S.st}>{filtered.length} registros
-              {recurrentes.length > 0 && (
-                <span style={{ marginLeft:8, fontSize:9, fontWeight:500, color:'var(--text-muted)', fontStyle:'italic' }}>
-                  · <span style={{ color:'#f59e0b' }}>🔄</span> = recurrente
-                </span>
-              )}
+            <div style={{ display:'flex', alignItems:'center', gap:10, flexWrap:'wrap' }}>
+              <div style={S.st}>
+                {pageSize === 0 || visible.length === filtered.length
+                  ? `${filtered.length} registros`
+                  : `${visible.length} de ${filtered.length}`}
+                {recurrentes.length > 0 && (
+                  <span style={{ marginLeft:8, fontSize:9, fontWeight:500, color:'var(--text-muted)', fontStyle:'italic' }}>
+                    · <span style={{ color:'#f59e0b' }}>🔄</span> = recurrente
+                  </span>
+                )}
+              </div>
+              {/* Selector de filas */}
+              <div style={{ display:'flex', alignItems:'center', gap:4 }}>
+                <span style={{ fontSize:10, color:'var(--text-muted)', fontWeight:600 }}>Mostrar:</span>
+                {PAGE_OPTS.map(n => (
+                  <button key={n} onClick={() => setPageSize(n)}
+                    style={{ padding:'2px 8px', borderRadius:99, border:`1.5px solid ${pageSize===n?'var(--accent)':'var(--border)'}`, background:pageSize===n?'var(--accent)':'transparent', color:pageSize===n?'#fff':'var(--text-muted)', fontFamily:'inherit', fontSize:11, fontWeight:700, cursor:'pointer', transition:'all .12s' }}>
+                    {n === 0 ? 'Todos' : n}
+                  </button>
+                ))}
+              </div>
             </div>
             <div style={{ display:'flex', gap:6, alignItems:'center', position:'relative' }}>
               <span style={{ fontSize:10, color:'var(--text-muted)', fontStyle:'italic' }}>⠿ Arrastrá para reordenar</span>
@@ -976,7 +1010,7 @@ export default function ListView({ gastos, onDelete, onEdit, onRefresh }) {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((g, i) => {
+                {visible.map((g, i) => {
                   const c = N1_COLORS[g.n1] || { bg:'#64748b', light:'var(--surface2)', text:'#64748b' }
                   const rec = recSet[`${g.n1}|${g.n4}`]
                   return (
@@ -1007,6 +1041,24 @@ export default function ListView({ gastos, onDelete, onEdit, onRefresh }) {
                           case 'n3':       return <td key="n3" style={{ padding:'8px 12px', color:'var(--text-secondary)', fontSize:12, maxWidth:120, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{g.n3||'—'}</td>
                           case 'fecha':    return <td key="fecha" style={{ padding:'8px 12px', whiteSpace:'nowrap', color:'var(--text-muted)', fontSize:12 }}>{fmtDate(g.fecha)}</td>
                           case 'nota':     return <td key="nota" style={{ padding:'8px 12px', color:'var(--text-muted)', maxWidth:120, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontSize:12, fontStyle:g.observaciones?'normal':'italic' }}>{g.observaciones||'—'}</td>
+                          case 'pago': {
+                            const mp = g.medio_pago || 'efectivo'
+                            const color = PAGO_COLOR[mp] || '#64748b'
+                            const bg    = PAGO_BG[mp]    || 'var(--surface2)'
+                            return (
+                              <td key="pago" style={{ padding:'8px 10px', whiteSpace:'nowrap' }}>
+                                <span style={{ display:'inline-flex', alignItems:'center', gap:4, padding:'2px 7px', borderRadius:99, background:bg, color }}>
+                                  <span style={{ fontSize:12 }}>{PAGO_ICON[mp] || '💵'}</span>
+                                  <span style={{ fontSize:10, fontWeight:700 }}>{PAGO_LABEL[mp] || mp}</span>
+                                  {g.cuotas_total > 1 && (
+                                    <span style={{ fontSize:10, fontWeight:800, color, opacity:.8 }}>
+                                      {g.cuota_numero}/{g.cuotas_total}
+                                    </span>
+                                  )}
+                                </span>
+                              </td>
+                            )
+                          }
                           case 'acciones': return (
                             <td key="acciones" style={{ padding:'8px 12px', whiteSpace:'nowrap' }}>
                               <button onClick={() => onEdit(g)} aria-label={`Editar ${g.n4}`}
