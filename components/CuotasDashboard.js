@@ -269,6 +269,13 @@ export default function CuotasDashboard({ gastos = [] }) {
     : base
   const visibles  = limit === 0 ? filtered : filtered.slice(0, limit)
 
+  const sufA = activas.length !== 1 ? 's' : ''
+  const sufS = saldadas.length !== 1 ? 's' : ''
+  const sufR = filtered.length !== 1 ? 's' : ''
+  const labelContador = searchQ
+    ? (filtered.length + ' resultado' + sufR)
+    : (activas.length + ' activa' + sufA + (saldadas.length > 0 ? ' · ' + saldadas.length + ' saldada' + sufS : ''))
+
   if (purchases.length === 0) {
     return (
       <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)' }}>
@@ -320,12 +327,9 @@ export default function CuotasDashboard({ gastos = [] }) {
         {/* Fila de controles */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
           <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600 }}>
-            {searchQ
-              ? `${filtered.length} resultado${filtered.length !== 1 ? 's' : ''}`
-              : `${activas.length} activa${activas.length !== 1 ? 's' : ''}${saldadas.length > 0 ? ` · ${saldadas.length} saldada${saldadas.length !== 1 ? 's' : ''}` : ''}`
-            }
+            {labelContador}
             {filtered.length > visibles.length && (
-              <span style={{ color: '#d97706', marginLeft: 6 }}>· mostrando {visibles.length}</span>
+              <span style={{ color: '#d97706', marginLeft: 6 }}>{'· mostrando ' + visibles.length}</span>
             )}
           </span>
 
