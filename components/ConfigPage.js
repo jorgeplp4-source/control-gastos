@@ -89,7 +89,7 @@ export default function ConfigPage() {
       if (!user) throw new Error('Sin sesión')
       const uid = user.id
       // Borrar en orden respetando FK: primero hijos, luego padres
-      const tablas = ['notificaciones', 'presupuestos', 'recurring_expenses', 'ingresos', 'gastos']
+      const tablas = ['notificaciones', 'presupuestos', 'recurring_expenses', 'ingresos', 'gastos', 'items']
       for (const tabla of tablas) {
         const { error } = await supabase.from(tabla).delete().eq('user_id', uid)
         if (error) throw error
@@ -212,6 +212,7 @@ export default function ConfigPage() {
                     <li>Todos los <strong>presupuestos</strong></li>
                     <li>Todos los <strong>gastos recurrentes</strong></li>
                     <li>Todas las <strong>notificaciones</strong></li>
+                    <li>Todos los <strong>ítems del catálogo</strong> creados por vos</li>
                   </ul>
                 </div>
               </div>
