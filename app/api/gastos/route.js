@@ -39,7 +39,8 @@ export async function POST(request) {
   }
 
   // ── Caso cuotas: generar N registros ─────────────────────────────────────
-  const { cuotas, monto_total, fecha_primera_cuota, medio_pago } = _cuotas_config
+  const { cuotas: cuotasRaw, monto_total, fecha_primera_cuota, medio_pago } = _cuotas_config
+  const cuotas = Math.min(Math.max(2, cuotasRaw), 120)   // guardia: 2-120
   const montoCuota  = Math.round(monto_total / cuotas)
   const compra_id   = crypto.randomUUID()
   const fecha_compra = gastoBase.fecha  // fecha real de la compra
