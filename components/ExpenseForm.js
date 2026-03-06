@@ -154,7 +154,7 @@ export default function ExpenseForm({ initial, onSave, onCancel }) {
   const { listen, supported, setError: setSrError } = useVoiceInput({ lang:'es-AR' })
 
   // ── Guardar gasto desde datos resueltos ───────────────────────────────────
-  const saveResolved = useCallback(async (resolved) => {
+  const saveResolved = useCallback(async (resolved, transcript = '') => {
     setVoiceState(VOICE_STATES.SAVING)
     const cuotasVoz   = resolved.cuotas   || 1
     const medioPagoVoz = resolved.medio_pago || (cuotasVoz > 1 ? 'credito' : 'efectivo')
@@ -172,6 +172,8 @@ export default function ExpenseForm({ initial, onSave, onCancel }) {
       medio_pago:   medioPagoVoz,
       cuotas_total: cuotasVoz,
       cuota_numero: 1,
+      pendiente_revision: resolved.pendiente || false,
+      transcripcion_voz:  transcript || null,
     }
     setForm(gasto)
     setMedioPago(medioPagoVoz)
@@ -231,8 +233,8 @@ export default function ExpenseForm({ initial, onSave, onCancel }) {
     }
 
     setVoiceResolved(resolved)
-    await saveResolved(resolved)
-    await speak('Registrado.')
+    await saveResolved(resolved, transcript)
+    await speak(resolved.pendiente ? 'Guardado para revisión.' : 'Registrado.')
   }, [supported, listen, items, categories, saveResolved])
 
   const handleMicClick = () => {
