@@ -9,6 +9,7 @@ import PresupuestosManager from './PresupuestosManager'
 import {
   IconTema, IconGlobo, IconIdioma, IconEtiquetas, IconRecurrentes, IconItems,
   IconClaro, IconOscuro, IconSistema, IconExito, IconGuardar, IconConfig, IconDinero,
+  IconPeligro, IconBorrar,
 } from '../lib/icons'
 
 const CURRENCIES = [
@@ -37,16 +38,23 @@ const SECCIONES = [
   { id:'unidades',   label:'Unidades',      Icon:IconItems,      group:'Datos' },
   { id:'recurrentes',   label:'Recurrentes',   Icon:IconRecurrentes, group:'Datos'       },
   { id:'presupuestos',  label:'Presupuestos',  Icon:IconDinero,      group:'Alertas'     },
+  { id:'peligro',       label:'Zona de Peligro', Icon:IconPeligro,   group:'Cuenta'      },
 ]
 
 export default function ConfigPage() {
   const supabase = createClient()
   const { settings, saveSettings } = useApp()
-  const [seccion,  setSeccion]  = useState('apariencia')
-  const [local,    setLocal]    = useState({ theme:'system', currency:'ARS', language:'es' })
-  const [saving,   setSaving]   = useState(false)
-  const [saved,    setSaved]    = useState(false)
-  const [isMobile, setIsMobile] = useState(false)
+  const [seccion,       setSeccion]       = useState('apariencia')
+  const [local,         setLocal]         = useState({ theme:'system', currency:'ARS', language:'es' })
+  const [saving,        setSaving]        = useState(false)
+  const [saved,         setSaved]         = useState(false)
+  const [isMobile,      setIsMobile]      = useState(false)
+  // Zona de Peligro
+  const [confirmando,   setConfirmando]   = useState(false)
+  const [textoConfirm,  setTextoConfirm]  = useState('')
+  const [borrando,      setBorrando]      = useState(false)
+  const [errorBorrado,  setErrorBorrado]  = useState(null)
+  const [exito,         setExito]         = useState(false)
 
   useEffect(() => {
     if (settings) setLocal({
@@ -72,9 +80,33 @@ export default function ConfigPage() {
     setTimeout(() => setSaved(false), 2000)
   }
 
+  const handleBorrarTodo = async () => {
+    if (textoConfirm !== 'BORRAR') return
+    setBorrando(true)
+    setErrorBorrado(null)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('Sin sesión')
+      const uid = user.id
+      // Borrar en orden respetando FK: primero hijos, luego padres
+      const tablas = ['notificaciones', 'presupuestos', 'recurring_expenses', 'ingresos', 'gastos']
+      for (const tabla of tablas) {
+        const { error } = await supabase.from(tabla).delete().eq('user_id', uid)
+        if (error) throw error
+      }
+      setExito(true)
+      setConfirmando(false)
+      setTextoConfirm('')
+    } catch (err) {
+      setErrorBorrado(err.message || 'Error al borrar')
+    } finally {
+      setBorrando(false)
+    }
+  }
+
   const inp = { padding:'9px 14px', border:'1.5px solid var(--border)', borderRadius:10, fontSize:14, background:'var(--surface)', outline:'none', color:'var(--text-primary)', fontFamily:'inherit', width:'100%' }
 
-  const showSave = !['catalogo','unidades','recurrentes','presupuestos'].includes(seccion)
+  const showSave = !['catalogo','unidades','recurrentes','presupuestos','peligro'].includes(seccion)
 
   // Agrupar secciones
   const groups = {}
@@ -147,6 +179,83 @@ export default function ConfigPage() {
         <Section title="Presupuestos" Icon={IconDinero} noSave
           subtitle="Definí límites mensuales por categoría para activar alertas automáticas">
           <PresupuestosManager />
+        </Section>
+      )
+
+      case 'peligro': return (
+        <Section title="Zona de Peligro" Icon={IconPeligro}
+          subtitle="Acciones irreversibles sobre tus datos. Procedé con cuidado." noSave>
+
+          {/* Éxito */}
+          {exito && (
+            <div style={{ background:'#d1fae5', border:'1.5px solid #6ee7b7', borderRadius:12, padding:'14px 16px', display:'flex', alignItems:'center', gap:10 }}>
+              <IconExito size={20} weight="fill" color="#059669" />
+              <div>
+                <div style={{ fontWeight:800, color:'#065f46', fontSize:13 }}>Datos eliminados correctamente</div>
+                <div style={{ fontSize:12, color:'#047857', marginTop:2 }}>Todos los gastos, ingresos, presupuestos y recurrentes fueron borrados.</div>
+              </div>
+            </div>
+          )}
+
+          {/* Tarjeta de borrado */}
+          {!exito && (
+            <div style={{ border:'1.5px solid #fca5a5', borderRadius:14, overflow:'hidden' }}>
+              {/* Header */}
+              <div style={{ background:'#fef2f2', padding:'14px 18px', display:'flex', alignItems:'flex-start', gap:12 }}>
+                <IconPeligro size={22} weight="fill" color="#dc2626" style={{ flexShrink:0, marginTop:1 }} />
+                <div>
+                  <div style={{ fontWeight:800, fontSize:14, color:'#7f1d1d' }}>Borrar todos mis datos</div>
+                  <div style={{ fontSize:12, color:'#b91c1c', marginTop:3 }}>Esta acción es <strong>permanente e irreversible</strong>. Se eliminarán:</div>
+                  <ul style={{ margin:'6px 0 0 0', padding:'0 0 0 16px', fontSize:11, color:'#dc2626', lineHeight:1.8 }}>
+                    <li>Todos los <strong>gastos registrados</strong></li>
+                    <li>Todos los <strong>ingresos</strong></li>
+                    <li>Todos los <strong>presupuestos</strong></li>
+                    <li>Todos los <strong>gastos recurrentes</strong></li>
+                    <li>Todas las <strong>notificaciones</strong></li>
+                  </ul>
+                </div>
+              </div>
+
+              {/* Body */}
+              <div style={{ background:'var(--surface)', padding:'16px 18px' }}>
+                {!confirmando ? (
+                  <button onClick={() => { setConfirmando(true); setTextoConfirm(''); setErrorBorrado(null) }}
+                    style={{ padding:'9px 18px', borderRadius:9, border:'1.5px solid #dc2626', background:'transparent', color:'#dc2626', fontWeight:700, fontSize:13, cursor:'pointer', display:'flex', alignItems:'center', gap:7, transition:'all .15s' }}
+                    onMouseEnter={e => { e.currentTarget.style.background = '#fef2f2' }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}>
+                    <IconBorrar size={14} /> Borrar todos mis datos
+                  </button>
+                ) : (
+                  <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+                    <div style={{ fontSize:13, color:'var(--text-secondary)', fontWeight:600 }}>
+                      Para confirmar, escribí <code style={{ background:'#fee2e2', color:'#dc2626', padding:'1px 6px', borderRadius:5, fontWeight:800 }}>BORRAR</code> en el campo:
+                    </div>
+                    <input
+                      value={textoConfirm}
+                      onChange={e => setTextoConfirm(e.target.value)}
+                      placeholder="Escribí BORRAR para confirmar"
+                      style={{ padding:'9px 14px', border:`1.5px solid ${textoConfirm==='BORRAR'?'#dc2626':'var(--border)'}`, borderRadius:9, fontSize:13, background:'var(--surface2)', color:'var(--text-primary)', fontFamily:'inherit', outline:'none' }}
+                    />
+                    {errorBorrado && (
+                      <div style={{ fontSize:12, color:'#dc2626', fontWeight:600 }}>⚠️ {errorBorrado}</div>
+                    )}
+                    <div style={{ display:'flex', gap:10 }}>
+                      <button onClick={() => { setConfirmando(false); setTextoConfirm(''); setErrorBorrado(null) }}
+                        style={{ padding:'8px 16px', borderRadius:9, border:'1.5px solid var(--border)', background:'var(--surface2)', color:'var(--text-secondary)', fontWeight:700, fontSize:13, cursor:'pointer' }}>
+                        Cancelar
+                      </button>
+                      <button onClick={handleBorrarTodo}
+                        disabled={textoConfirm !== 'BORRAR' || borrando}
+                        style={{ padding:'8px 18px', borderRadius:9, border:'none', background:textoConfirm==='BORRAR'?'#dc2626':'#fca5a5', color:'#fff', fontWeight:800, fontSize:13, cursor:textoConfirm==='BORRAR'&&!borrando?'pointer':'not-allowed', display:'flex', alignItems:'center', gap:7, transition:'background .15s' }}>
+                        <IconBorrar size={13} />
+                        {borrando ? 'Borrando…' : 'Confirmar borrado'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </Section>
       )
 
