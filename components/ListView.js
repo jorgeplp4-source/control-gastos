@@ -326,6 +326,19 @@ function ColHeader({ col, sortField, sortDir, onSort, isDragOver, onDragStart, o
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 // ── Panel de gastos pendientes de revisión ────────────────────────────────────
+const CUOTAS_OPTS   = [1, 2, 3, 6, 9, 12, 18, 24]
+const MEDIO_OPTS    = [
+  { val:'efectivo',      label:'Efectivo',  icon:'💵' },
+  { val:'debito',        label:'Débito',    icon:'💳' },
+  { val:'credito',       label:'Crédito',   icon:'💳' },
+  { val:'transferencia', label:'Transfer.', icon:'📲' },
+]
+function calcFechaPrimeraCuotaP(fechaCompra) {
+  const d = new Date((fechaCompra || new Date().toISOString().split('T')[0]) + 'T12:00:00')
+  d.setMonth(d.getMonth() + 1)
+  return d.toISOString().split('T')[0]
+}
+
 function PendientesPanel({ gastos, onConfirm }) {
   const pendientes = gastos.filter(g => g.pendiente_revision)
   const { categories } = useCategories()
@@ -374,7 +387,12 @@ function PendientesPanel({ gastos, onConfirm }) {
 
   const startEdit = (g) => {
     setEditId(g.id)
-    setEditData({ n4: g._baseName||'', n1: g.n1||'', n2: g.n2||'', n3: g.n3||'', monto: g.monto||0, cantidad: g.cantidad||1, unidad: g.unidad||'unidad' })
+    setEditData({
+      n4: g._baseName||'', n1: g.n1||'', n2: g.n2||'', n3: g.n3||'',
+      monto: g.monto||0, cantidad: g.cantidad||1, unidad: g.unidad||'unidad',
+      medio_pago: g.medio_pago || 'efectivo',
+      cuotas: g._esGrupo ? (g.cuotas_total||1) : (g.cuotas_total||1),
+    })
     setAgregarCat(false)
   }
 
@@ -390,14 +408,45 @@ function PendientesPanel({ gastos, onConfirm }) {
   }
 
   const handleConfirm = async (g) => {
-    const data = editId === g.id ? editData : { n4: g._baseName, n1: g.n1, n2: g.n2, n3: g.n3, monto: g.monto, cantidad: g.cantidad, unidad: g.unidad }
+    const data = editId === g.id ? editData : {
+      n4: g._baseName, n1: g.n1, n2: g.n2, n3: g.n3,
+      monto: g.monto, cantidad: g.cantidad, unidad: g.unidad,
+      medio_pago: g.medio_pago || 'efectivo', cuotas: g.cuotas_total || 1,
+    }
     if (!data.n4.trim()) return
     setSaving(true)
     try {
-      const body = g._esGrupo
-        ? { compra_id: g.compra_id, ...data, pendiente_revision: false }
-        : { id: g.id, ...data, pendiente_revision: false }
-      await fetch('/api/gastos', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      const cuotas    = parseInt(data.cuotas) || 1
+      const medioPago = data.medio_pago || 'efectivo'
+
+      if (cuotas > 1 && !g._esGrupo) {
+        // Eliminar el registro único pendiente y crear N registros de cuota
+        await fetch(`/api/gastos?id=${g.id}`, { method: 'DELETE' })
+        await fetch('/api/gastos', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            n1: data.n1||'Sin definir', n2: data.n2||'', n3: data.n3||'', n4: data.n4,
+            cantidad: data.cantidad, unidad: data.unidad||'unidad',
+            monto: data.monto, fecha: g.fecha,
+            observaciones: g.observaciones||'', medio_pago: medioPago,
+            pendiente_revision: false,
+            _cuotas_config: {
+              cuotas,
+              monto_total: data.monto,
+              fecha_primera_cuota: calcFechaPrimeraCuotaP(g.fecha),
+              medio_pago: medioPago,
+            },
+          }),
+        })
+      } else {
+        // Actualizar el registro (o grupo) existente
+        const body = g._esGrupo
+          ? { compra_id: g.compra_id, ...data, medio_pago: medioPago, pendiente_revision: false }
+          : { id: g.id, ...data, medio_pago: medioPago, pendiente_revision: false }
+        await fetch('/api/gastos', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      }
+
       if (agregarCat && data.n4.trim() && data.n1) {
         await fetch('/api/items', {
           method: 'POST',
@@ -494,6 +543,43 @@ function PendientesPanel({ gastos, onConfirm }) {
                       </select>
                     </div>
                   </div>
+
+                  {/* ── Medio de pago + cuotas (solo para ítems simples, no grupos ya confirmados) ── */}
+                  {!g._esGrupo && (
+                    <div style={{ display:'flex', flexDirection:'column', gap:10, padding:'10px 12px', background:'#fef9f0', borderRadius:9, border:'1px solid #fed7aa' }}>
+                      <div>
+                        <label style={lbl}>Medio de pago</label>
+                        <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+                          {MEDIO_OPTS.map(m => (
+                            <button key={m.val} type="button"
+                              onClick={() => setEditData(p => ({ ...p, medio_pago: m.val, cuotas: m.val !== 'credito' ? 1 : p.cuotas }))}
+                              style={{ padding:'5px 12px', borderRadius:99, border:`1.5px solid ${editData.medio_pago===m.val?'#c2410c':'#fed7aa'}`, background: editData.medio_pago===m.val?'#c2410c':'#fff', color: editData.medio_pago===m.val?'#fff':'#92400e', fontSize:11, fontWeight:700, cursor:'pointer', transition:'all .12s' }}>
+                              {m.icon} {m.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      {editData.medio_pago === 'credito' && (
+                        <div>
+                          <label style={lbl}>Cuotas</label>
+                          <div style={{ display:'flex', gap:5, flexWrap:'wrap' }}>
+                            {CUOTAS_OPTS.map(n => (
+                              <button key={n} type="button"
+                                onClick={() => setEditData(p => ({ ...p, cuotas: n }))}
+                                style={{ padding:'4px 11px', borderRadius:99, border:`1.5px solid ${editData.cuotas===n?'#c2410c':'#fed7aa'}`, background: editData.cuotas===n?'#c2410c':'#fff', color: editData.cuotas===n?'#fff':'#92400e', fontSize:11, fontWeight:700, cursor:'pointer', minWidth:36 }}>
+                                {n === 1 ? 'Contado' : n}
+                              </button>
+                            ))}
+                          </div>
+                          {editData.cuotas > 1 && (
+                            <div style={{ marginTop:6, fontSize:11, color:'#92400e', background:'#fff7ed', padding:'5px 9px', borderRadius:7 }}>
+                              💳 {editData.cuotas} cuotas de <strong>{fmt(Math.round(editData.monto / editData.cuotas))}</strong> · Total: <strong>{fmt(editData.monto)}</strong>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   <div style={{ borderTop:'1px dashed #fed7aa', paddingTop:12 }}>
                     <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer', userSelect:'none' }}>
