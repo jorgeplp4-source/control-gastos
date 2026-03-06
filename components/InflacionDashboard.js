@@ -73,9 +73,10 @@ function TabBtn({ id, label, icon, active, onClick }) {
 // ── Líneas: variación % desde el primer mes con datos ────────────────────────
 function LinePrecios({ rawData, meses, productos }) {
   const datasets = useMemo(() => productos.map((prod, i) => {
-    const rows = rawData.filter(r => r.producto_norm === prod)
-    const baseRow = rows.find(r => r.mes === meses[0])
-    const base = baseRow ? baseRow.precio_unit : null
+    const rows       = rawData.filter(r => r.producto_norm === prod)
+    const sortedRows = [...rows].sort((a,b) => a.mes.localeCompare(b.mes))
+    const baseRow    = sortedRows[0]
+    const base       = baseRow?.precio_unit ?? null
     return {
       label: rawData.find(r => r.producto_norm === prod)?.producto || prod,
       data: meses.map(m => {
@@ -177,11 +178,12 @@ function TablaProductos({ rawData, meses, filtroCategoria, ordenar }) {
     return Object.values(map)
       .filter(p => {
         if (filtroCategoria !== 'todas' && p.categoria !== filtroCategoria) return false
-        return p.data[meses[0]] && p.data[meses[meses.length-1]]
+        return Object.keys(p.data).length >= 2
       })
       .map(p => {
-        const base   = p.data[meses[0]] || 0
-        const ultimo = p.data[meses[meses.length-1]] || 0
+        const mesesP = Object.keys(p.data).sort()
+        const base   = p.data[mesesP[0]] || 0
+        const ultimo = p.data[mesesP[mesesP.length-1]] || 0
         const acum   = base ? (ultimo - base) / base * 100 : 0
         const mensual = meses.slice(1).map((m, i) => {
           const prev = p.data[meses[i]]
@@ -307,15 +309,18 @@ function RankingInflacion({ rawData, meses }) {
       if (!map[r.producto_norm]) map[r.producto_norm] = { producto: r.producto, categoria: r.categoria, data: {} }
       map[r.producto_norm].data[r.mes] = r.precio_unit
     }
-    const primero = meses[0]
-    const ultimo  = meses[meses.length - 1]
     return Object.values(map)
-      .filter(p => p.data[primero] && p.data[ultimo])
-      .map(p => ({
-        producto: p.producto, categoria: p.categoria,
-        acum: (p.data[ultimo] - p.data[primero]) / p.data[primero] * 100,
-        base: p.data[primero], final: p.data[ultimo],
-      }))
+      .filter(p => Object.keys(p.data).length >= 2)
+      .map(p => {
+        const mesesP   = Object.keys(p.data).sort()
+        const primerM  = mesesP[0]
+        const ultimoM  = mesesP[mesesP.length - 1]
+        return {
+          producto: p.producto, categoria: p.categoria,
+          acum: (p.data[ultimoM] - p.data[primerM]) / p.data[primerM] * 100,
+          base: p.data[primerM], final: p.data[ultimoM],
+        }
+      })
       .sort((a, b) => b.acum - a.acum)
       .slice(0, 12)
   }, [rawData, meses])
@@ -375,8 +380,9 @@ export default function InflacionDashboard() {
 
       if (!rInicio?.length || !rFin?.length) { setLoading(false); return }
 
-      const mesInicio = rInicio[0].fecha.substring(0, 7)
-      const mesFin    = rFin[0].fecha.substring(0, 7)
+      const mesInicio  = rInicio[0].fecha.substring(0, 7)
+      const hoy        = new Date().toISOString().substring(0, 7)
+      const mesFin     = rFin[0].fecha.substring(0, 7) > hoy ? hoy : rFin[0].fecha.substring(0, 7)
 
       // Generar array de meses en el rango
       const mesesRango = []
@@ -466,8 +472,9 @@ export default function InflacionDashboard() {
 
     const inflCat = {}
     for (const p of Object.values(mapaProds)) {
-      if (!p.porMes[primero] || !p.porMes[ultimo]) continue
-      const acum = (p.porMes[ultimo] - p.porMes[primero]) / p.porMes[primero] * 100
+      const mesesP = Object.keys(p.porMes).sort()
+      if (mesesP.length < 2) continue
+      const acum = (p.porMes[mesesP[mesesP.length-1]] - p.porMes[mesesP[0]]) / p.porMes[mesesP[0]] * 100
       const cat  = p.categoria || 'Sin categoría'
       if (!inflCat[cat]) inflCat[cat] = []
       inflCat[cat].push(acum)
@@ -621,7 +628,7 @@ export default function InflacionDashboard() {
       {tab === 'productos' && (
         <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 20, border: '1px solid var(--border)', boxShadow: 'var(--shadow)' }}>
           <h3 style={{ margin: '0 0 4px', fontSize: 15, fontWeight: 800 }}>🏷️ Evolución de precios unitarios</h3>
-          <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 14px' }}>Variación % desde {pLabel}. Hasta 8 productos.</p>
+          <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 14px' }}>Variación % desde primer registro de cada producto. Hasta 8.</p>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 20, maxHeight: 130, overflowY: 'auto', paddingBottom: 4 }}>
             {todosProductos.map(pn => {
               const label = rawData.find(r => r.producto_norm === pn)?.producto || pn
