@@ -26,11 +26,8 @@ const ALL_COLS = [
 ]
 const DEFAULT_ORDER = ['monto','pago','n4','cantidad','n1','n2','n3','fecha','nota','acciones']
 
-// ── Iconos y etiquetas de medio de pago ───────────────────────────────────────
-const PAGO_ICON  = { credito:'💳', debito:'🏧', efectivo:'💵', transferencia:'📲' }
+// ── Etiquetas de medio de pago ────────────────────────────────────────────────
 const PAGO_LABEL = { credito:'Créd.', debito:'Déb.', efectivo:'Efvo.', transferencia:'Transf.' }
-const PAGO_COLOR = { credito:'#7c3aed', debito:'#0284c7', efectivo:'#059669', transferencia:'#d97706' }
-const PAGO_BG    = { credito:'#ede9fe', debito:'#e0f2fe', efectivo:'#d1fae5', transferencia:'#fef3c7' }
 
 // ── Opciones de filas por página ──────────────────────────────────────────────
 const PAGE_OPTS = [25, 50, 100, 0]  // 0 = Todos
@@ -1043,17 +1040,12 @@ export default function ListView({ gastos, onDelete, onEdit, onRefresh }) {
                           case 'nota':     return <td key="nota" style={{ padding:'8px 12px', color:'var(--text-muted)', maxWidth:120, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontSize:12, fontStyle:g.observaciones?'normal':'italic' }}>{g.observaciones||'—'}</td>
                           case 'pago': {
                             const mp = g.medio_pago || 'efectivo'
-                            const color = PAGO_COLOR[mp] || '#64748b'
-                            const bg    = PAGO_BG[mp]    || 'var(--surface2)'
                             return (
                               <td key="pago" style={{ padding:'8px 10px', whiteSpace:'nowrap' }}>
-                                <span style={{ display:'inline-flex', alignItems:'center', gap:4, padding:'2px 7px', borderRadius:99, background:bg, color }}>
-                                  <span style={{ fontSize:12 }}>{PAGO_ICON[mp] || '💵'}</span>
-                                  <span style={{ fontSize:10, fontWeight:700 }}>{PAGO_LABEL[mp] || mp}</span>
+                                <span style={{ fontSize:11, color:'var(--text-muted)' }}>
+                                  {PAGO_LABEL[mp] || mp}
                                   {g.cuotas_total > 1 && (
-                                    <span style={{ fontSize:10, fontWeight:800, color, opacity:.8 }}>
-                                      {g.cuota_numero}/{g.cuotas_total}
-                                    </span>
+                                    <span style={{ opacity:.7 }}> {g.cuota_numero}/{g.cuotas_total}</span>
                                   )}
                                 </span>
                               </td>
