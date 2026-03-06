@@ -3,6 +3,9 @@
     "dashboard": "Dashboard",
     "registro": "Registrar",
     "listado": "Listado",
+    "ingresos": "Ingresos",
+    "inflacion": "Inflación",
+    "asesor": "Asesor",
     "recurrentes": "Recurrentes",
     "configuracion": "Configuración",
     "salir": "Salir"

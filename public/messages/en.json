@@ -3,6 +3,9 @@
     "dashboard": "Dashboard",
     "registro": "Add Expense",
     "listado": "List",
+    "ingresos": "Income",
+    "inflacion": "Inflation",
+    "asesor": "Advisor",
     "recurrentes": "Recurring",
     "configuracion": "Settings",
     "salir": "Sign Out"

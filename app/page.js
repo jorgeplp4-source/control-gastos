@@ -102,11 +102,12 @@ export default function Home() {
 
   const handleSave = async (form) => {
     const isEdit = !!form.id
-    const { _recurrente, ...gastoData } = form
+    const { _recurrente, _cuotas_config, ...gastoData } = form
+    const body = _cuotas_config ? { ...gastoData, _cuotas_config } : gastoData
     const res = await fetch('/api/gastos', {
       method: isEdit ? 'PUT' : 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(gastoData),
+      body: JSON.stringify(body),
     })
     const record = await res.json()
     if (_recurrente && record.id) {
@@ -120,13 +121,26 @@ export default function Home() {
         }),
       })
     }
-    setGastos(prev => {
-      const rest = prev.filter(g => g.id !== record.id)
-      return [record, ...rest].sort((a, b) => b.fecha.localeCompare(a.fecha))
-    })
+    // Si fue en cuotas, refrescar gastos completos desde el servidor
+    // para que aparezcan todas las cuotas en el listado
+    if (_cuotas_config && _cuotas_config.cuotas > 1) {
+      const all = await fetch('/api/gastos').then(r => r.json())
+      setGastos(all)
+    } else {
+      setGastos(prev => {
+        const rest = prev.filter(g => g.id !== record.id)
+        return [record, ...rest].sort((a, b) => b.fecha.localeCompare(a.fecha))
+      })
+    }
     setEditTarget(null)
-    if (isEdit) setTab('listado')   // solo volver al listado al editar, no al registrar nuevo
-    showToast(isEdit ? 'Gasto actualizado' : _recurrente ? 'Gasto + recurrencia creados' : 'Gasto registrado')
+    if (isEdit) setTab('listado')
+    const cuotasN = _cuotas_config?.cuotas
+    showToast(
+      isEdit ? 'Gasto actualizado'
+      : cuotasN > 1 ? `✅ ${cuotasN} cuotas registradas`
+      : _recurrente ? 'Gasto + recurrencia creados'
+      : 'Gasto registrado'
+    )
   }
 
   const handleDelete = async (id) => {

@@ -1,7 +1,6 @@
 'use client'
-import React, { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { N1_COLORS } from '../lib/constants'
-import { useApp } from '../context/AppContext'
 import { useUnits } from '../lib/useUnits'
 import { useItems } from '../lib/useItems'
 import { useCategories } from '../lib/useCategories'
@@ -20,6 +19,20 @@ const FRECUENCIAS = [
   { val:'custom',    label:'Otro',      Icon: IconConfig     },
 ]
 
+const CUOTAS_OPCIONES = [1, 2, 3, 6, 9, 12, 18, 24]
+const MEDIO_PAGO_OPTS = [
+  { val: 'efectivo',      label: 'Efectivo',     icon: '💵' },
+  { val: 'debito',        label: 'Débito',        icon: '💳' },
+  { val: 'credito',       label: 'Crédito',       icon: '💳' },
+  { val: 'transferencia', label: 'Transfer.',     icon: '📲' },
+]
+
+function calcFechaPrimeraCuota(fechaCompra) {
+  const d = new Date(fechaCompra + 'T12:00:00')
+  d.setMonth(d.getMonth() + 1)
+  return d.toISOString().split('T')[0]
+}
+
 const VOICE_STATES = {
   IDLE:      'idle',
   LISTENING: 'listening',
@@ -36,32 +49,6 @@ const MATCH_BADGE = {
   n2:    { label:'Área',         color:'#059669' },
   n1:    { label:'Tipo',         color:'#1e40af' },
   libre: { label:'Libre',        color:'#64748b' },
-}
-
-// ── DateInputWithLabel — picker nativo + etiqueta en formato configurado ───────
-function DateInputWithLabel({ value, onChange, style }) {
-  const { settings } = useApp()
-  const fmt = settings?.date_format || 'DD/MM/YYYY'
-
-  const toDisplay = (iso) => {
-    if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return ''
-    const [y, m, d] = iso.split('-')
-    if (fmt === 'MM/DD/YYYY') return `${m}/${d}/${y}`
-    if (fmt === 'YYYY-MM-DD') return `${y}-${m}-${d}`
-    return `${d}/${m}/${y}`
-  }
-
-  return (
-    <div style={{ position: 'relative' }}>
-      <input type="date" value={value} onChange={onChange} style={style}/>
-      {value && (
-        <span style={{ position:'absolute', right:10, top:'50%', transform:'translateY(-50%)',
-          fontSize:11, color:'var(--text-muted)', pointerEvents:'none', fontWeight:600 }}>
-          {toDisplay(value)}
-        </span>
-      )}
-    </div>
-  )
 }
 
 function VoicePanel({ state, transcript, resolved, onDismiss }) {
@@ -110,10 +97,15 @@ function VoicePanel({ state, transcript, resolved, onDismiss }) {
               {mb.label}
             </span>
           )}
+          {resolved.cuotas > 1 && (
+            <span style={{ padding:'2px 8px', borderRadius:99, background:'#3b82f618', color:'#3b82f6', fontSize:10, fontWeight:800, border:'1px solid #3b82f633' }}>
+              💳 {resolved.cuotas} cuotas
+            </span>
+          )}
           {[
-            { label:'',       val: resolved.n4 },
-            { label:'$',      val: resolved.monto },
-            { label:'',       val: resolved.n1 !== 'Sin definir' ? `· ${[resolved.n1,resolved.n2,resolved.n3].filter(Boolean).join(' › ')}` : '· Sin categoría' },
+            { label:'',  val: resolved.n4 },
+            { label:'$', val: resolved.monto },
+            { label:'',  val: resolved.n1 !== 'Sin definir' ? `· ${[resolved.n1,resolved.n2,resolved.n3].filter(Boolean).join(' › ')}` : '· Sin categoría' },
           ].filter(x=>x.val).map((x,i) => (
             <span key={i} style={{ fontSize:12, fontWeight: i===0?800:500, color: i===0?'var(--text-primary)':'var(--text-muted)' }}>
               {x.label}{x.val}
@@ -144,6 +136,10 @@ export default function ExpenseForm({ initial, onSave, onCancel }) {
   const voiceAbort = useRef(false)
   const itemsRef    = useRef(items)
 
+  // ── Estado cuotas / medio de pago ─────────────────────────────────────────
+  const [medioPago, setMedioPago] = useState(initial?.medio_pago || 'efectivo')
+  const [cuotas,    setCuotas]    = useState(initial?.cuotas_total || 1)
+
   itemsRef.current = items
   const setRec = (k, v) => setRecForm(p => ({ ...p, [k]:v }))
   const set    = (k, v) => setForm(p => ({ ...p, [k]:v }))
@@ -158,8 +154,11 @@ export default function ExpenseForm({ initial, onSave, onCancel }) {
   const { listen, supported, setError: setSrError } = useVoiceInput({ lang:'es-AR' })
 
   // ── Guardar gasto desde datos resueltos ───────────────────────────────────
-  const saveResolved = useCallback(async (resolved, transcript='') => {
+  const saveResolved = useCallback(async (resolved) => {
     setVoiceState(VOICE_STATES.SAVING)
+    const cuotasVoz   = resolved.cuotas   || 1
+    const medioPagoVoz = resolved.medio_pago || (cuotasVoz > 1 ? 'credito' : 'efectivo')
+
     const gasto = {
       n1: resolved.n1 || 'Sin definir',
       n2: resolved.n2 || '',
@@ -167,19 +166,39 @@ export default function ExpenseForm({ initial, onSave, onCancel }) {
       n4: resolved.n4 || 'Gasto',
       cantidad:  parseFloat(resolved.cantidad) || 1,
       unidad:    resolved.unidad || 'unidad',
-      monto:     parseFloat(resolved.monto)    || 0,
+      monto:     parseFloat(resolved.monto) || 0,
       fecha:     today,
       observaciones: '',
-      pendiente_revision: resolved.pendiente || false,
-      transcripcion_voz:  transcript || null,
+      medio_pago:   medioPagoVoz,
+      cuotas_total: cuotasVoz,
+      cuota_numero: 1,
     }
     setForm(gasto)
+    setMedioPago(medioPagoVoz)
+    setCuotas(cuotasVoz)
     setSelectedItem(null)
-    await onSave(gasto)
+
+    // Si hay cuotas, generar todos los registros
+    if (cuotasVoz > 1) {
+      const payload = {
+        ...gasto,
+        _cuotas_config: {
+          cuotas: cuotasVoz,
+          monto_total: parseFloat(resolved.monto) || 0,
+          fecha_primera_cuota: calcFechaPrimeraCuota(today),
+          medio_pago: medioPagoVoz,
+        }
+      }
+      await onSave(payload)
+    } else {
+      await onSave(gasto)
+    }
+
     setVoiceState(VOICE_STATES.DONE)
     setTimeout(() => {
       setVoiceState(VOICE_STATES.IDLE)
-      setVoiceTranscript(''); setVoiceResolved(null)
+      setVoiceTranscript('')
+      setVoiceResolved(null)
     }, 3000)
   }, [today, onSave])
 
@@ -204,13 +223,16 @@ export default function ExpenseForm({ initial, onSave, onCancel }) {
     const parsed   = parseVoice(transcript)
     const resolved = resolveVoice(parsed, { items: itemsRef.current, categories })
 
-    setVoiceResolved(resolved)
-    await saveResolved(resolved, transcript)
-    if (resolved.pendiente) {
-      await speak('Guardado para revisión.')
-    } else {
-      await speak('Registrado.')
+    if (!resolved) {
+      setVoiceState(VOICE_STATES.NOT_FOUND)
+      await speak('No encontrado.')
+      setTimeout(() => { setVoiceState(VOICE_STATES.IDLE); setVoiceTranscript('') }, 3000)
+      return
     }
+
+    setVoiceResolved(resolved)
+    await saveResolved(resolved)
+    await speak('Registrado.')
   }, [supported, listen, items, categories, saveResolved])
 
   const handleMicClick = () => {
@@ -229,8 +251,27 @@ export default function ExpenseForm({ initial, onSave, onCancel }) {
   const handleSubmit = async () => {
     if (!valid || saving) return
     setSaving(true)
-    const gasto = { ...form, cantidad:parseFloat(form.cantidad), monto:parseFloat(form.monto), ...(initial?{id:initial.id}:{}) }
-    if (hacerRec && !initial) gasto._recurrente = { ...recForm, intervalo_dias:parseInt(recForm.intervalo_dias)||30, fecha_fin:recForm.fecha_fin||null }
+    const gasto = {
+      ...form,
+      cantidad:    parseFloat(form.cantidad),
+      monto:       parseFloat(form.monto),
+      medio_pago:  medioPago,
+      cuotas_total: cuotas,
+      cuota_numero: 1,
+      ...(initial ? { id: initial.id } : {}),
+    }
+    if (hacerRec && !initial) {
+      gasto._recurrente = { ...recForm, intervalo_dias: parseInt(recForm.intervalo_dias) || 30, fecha_fin: recForm.fecha_fin || null }
+    }
+    // Cuotas > 1: generar todos los registros
+    if (cuotas > 1 && !initial) {
+      gasto._cuotas_config = {
+        cuotas,
+        monto_total: parseFloat(form.monto),
+        fecha_primera_cuota: calcFechaPrimeraCuota(form.fecha),
+        medio_pago: medioPago,
+      }
+    }
     await onSave(gasto)
     setSaving(false)
   }
@@ -337,6 +378,61 @@ export default function ExpenseForm({ initial, onSave, onCancel }) {
             <textarea value={form.observaciones} onChange={e=>set('observaciones',e.target.value)} placeholder="Notas adicionales…" rows={2} style={{ ...inp, resize:'vertical' }}/>
           </div>
 
+          {/* ── Medio de pago + Cuotas ── */}
+          <div style={{ marginTop:18, borderRadius:14, border:'1.5px solid var(--border)', overflow:'hidden' }}>
+            <div style={{ padding:'12px 18px', background:'var(--surface2)', borderBottom:'1px solid var(--border)' }}>
+              <span style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'.06em' }}>Medio de pago</span>
+            </div>
+            <div style={{ padding:'14px 18px' }}>
+              {/* Selector medio de pago */}
+              <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom: medioPago === 'credito' ? 16 : 0 }}>
+                {MEDIO_PAGO_OPTS.map(({ val, label, icon }) => (
+                  <button key={val} onClick={() => { setMedioPago(val); if (val !== 'credito') setCuotas(1) }}
+                    style={{
+                      padding:'7px 14px', borderRadius:8, border:`1.5px solid ${medioPago===val ? activeColor : 'var(--border)'}`,
+                      background: medioPago===val ? `${activeColor}15` : 'var(--surface)',
+                      color: medioPago===val ? activeColor : 'var(--text-secondary)',
+                      fontWeight:700, fontSize:12, cursor:'pointer', display:'flex', alignItems:'center', gap:5, transition:'all .15s',
+                    }}>
+                    <span>{icon}</span> {label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Cuotas — solo si es crédito */}
+              {medioPago === 'credito' && (
+                <div>
+                  <label style={{ ...lbl, marginBottom:8 }}>Cuotas</label>
+                  <div style={{ display:'flex', gap:6, flexWrap:'wrap', alignItems:'center' }}>
+                    {CUOTAS_OPCIONES.map(n => (
+                      <button key={n} onClick={() => setCuotas(n)}
+                        style={{
+                          width:42, height:36, borderRadius:8, border:`1.5px solid ${cuotas===n ? activeColor : 'var(--border)'}`,
+                          background: cuotas===n ? `${activeColor}15` : 'var(--surface)',
+                          color: cuotas===n ? activeColor : 'var(--text-secondary)',
+                          fontWeight:800, fontSize:13, cursor:'pointer', transition:'all .15s',
+                        }}>
+                        {n === 1 ? 'x1' : n}
+                      </button>
+                    ))}
+                  </div>
+                  {cuotas > 1 && form.monto && (
+                    <div style={{ marginTop:10, padding:'8px 12px', background:`${activeColor}12`, borderRadius:8, display:'flex', alignItems:'center', gap:8 }}>
+                      <span style={{ fontSize:13 }}>💳</span>
+                      <span style={{ fontSize:13, color:'var(--text-secondary)' }}>
+                        <strong style={{ color: activeColor }}>{cuotas} cuotas</strong> de{' '}
+                        <strong style={{ color:'var(--text-primary)' }}>
+                          ${Math.round(parseFloat(form.monto) / cuotas).toLocaleString('es-AR')}
+                        </strong>
+                        {' '}· primera cuota en {new Date(calcFechaPrimeraCuota(form.fecha || new Date().toISOString().split('T')[0]) + 'T12:00:00').toLocaleDateString('es-AR', { month:'long', year:'numeric' })}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* Recurrente */}
           {!initial && (
             <div style={{ marginTop:20, borderRadius:14, border:`1.5px solid ${hacerRec?activeColor:'var(--border)'}`, overflow:'hidden', transition:'border-color .2s' }}>
@@ -400,6 +496,7 @@ export default function ExpenseForm({ initial, onSave, onCancel }) {
               {saving
                 ? <><IconRecurrentes size={15} style={{ animation:'spin 1s linear infinite' }}/> Guardando…</>
                 : initial ? <><IconGuardar size={15}/> Guardar Cambios</>
+                : cuotas > 1 ? <><IconExito size={15}/> Registrar {cuotas} cuotas</>
                 : hacerRec ? <><IconExito size={15}/> Registrar + Recurrencia</>
                 : <><IconExito size={15}/> Registrar Gasto</>}
             </button>
