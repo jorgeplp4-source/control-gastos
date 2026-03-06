@@ -181,16 +181,18 @@ function TablaProductos({ rawData, meses, filtroCategoria, ordenar }) {
         return Object.keys(p.data).length >= 2
       })
       .map(p => {
-        const mesesP = Object.keys(p.data).sort()
-        const base   = p.data[mesesP[0]] || 0
-        const ultimo = p.data[mesesP[mesesP.length-1]] || 0
-        const acum   = base ? (ultimo - base) / base * 100 : 0
+        const mesesP  = Object.keys(p.data).sort()
+        const mesBase = mesesP[0]
+        const mesUlt  = mesesP[mesesP.length-1]
+        const base    = p.data[mesBase] || 0
+        const ultimo  = p.data[mesUlt]  || 0
+        const acum    = base ? (ultimo - base) / base * 100 : 0
         const mensual = meses.slice(1).map((m, i) => {
           const prev = p.data[meses[i]]
           const curr = p.data[m]
           return (prev && curr) ? (curr - prev) / prev * 100 : null
         })
-        return { ...p, base, ultimo, acum, mensual }
+        return { ...p, base, ultimo, acum, mensual, mesBase, mesUlt }
       })
       .sort((a, b) => ordenar === 'acum' ? b.acum - a.acum : a.producto.localeCompare(b.producto))
   }, [rawData, meses, filtroCategoria, ordenar])
@@ -204,7 +206,7 @@ function TablaProductos({ rawData, meses, filtroCategoria, ordenar }) {
           <tr style={{ borderBottom: '2px solid var(--border)' }}>
             {[
               'Producto', 'Categoría',
-              mesLabel(meses[0]), mesLabel(meses[meses.length-1]),
+              'Base', 'Actual',
               'Acum.',
               ...mesesMensual.map(m => mesLabel(m))
             ].map((h, i) => (
@@ -221,8 +223,14 @@ function TablaProductos({ rawData, meses, filtroCategoria, ordenar }) {
               <td style={{ padding: '8px 9px' }}>
                 <span style={{ background: catColor(p.categoria) + '22', color: catColor(p.categoria), borderRadius: 6, padding: '2px 7px', fontSize: 10, fontWeight: 700 }}>{p.categoria || '—'}</span>
               </td>
-              <td style={{ padding: '8px 9px', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{fmt$(p.base)}</td>
-              <td style={{ padding: '8px 9px', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{fmt$(p.ultimo)}</td>
+              <td style={{ padding: '8px 9px', whiteSpace: 'nowrap' }}>
+                <span style={{ color: 'var(--text-secondary)' }}>{fmt$(p.base)}</span>
+                <span style={{ fontSize: 9, color: 'var(--text-muted)', marginLeft: 3 }}>{mesLabel(p.mesBase)}</span>
+              </td>
+              <td style={{ padding: '8px 9px', whiteSpace: 'nowrap' }}>
+                <span style={{ color: 'var(--text-secondary)' }}>{fmt$(p.ultimo)}</span>
+                <span style={{ fontSize: 9, color: 'var(--text-muted)', marginLeft: 3 }}>{mesLabel(p.mesUlt)}</span>
+              </td>
               <td style={{ padding: '8px 9px', fontWeight: 800, whiteSpace: 'nowrap',
                 color: p.acum > 40 ? '#ef4444' : p.acum > 20 ? '#f59e0b' : '#10b981' }}>
                 {fmtPct(p.acum)}
@@ -384,13 +392,15 @@ export default function InflacionDashboard() {
       const hoy        = new Date().toISOString().substring(0, 7)
       const mesFin     = rFin[0].fecha.substring(0, 7) > hoy ? hoy : rFin[0].fecha.substring(0, 7)
 
-      // Generar array de meses en el rango
+      // Generar array de meses en el rango (aritmética pura, sin new Date() para evitar bug UTC-3)
       const mesesRango = []
-      let cur = new Date(mesInicio + '-01')
-      const fin = new Date(mesFin + '-01')
-      while (cur <= fin) {
-        mesesRango.push(`${cur.getFullYear()}-${String(cur.getMonth()+1).padStart(2,'0')}`)
-        cur.setMonth(cur.getMonth() + 1)
+      const [iy, im] = mesInicio.split('-').map(Number)
+      const [fy, fm] = mesFin.split('-').map(Number)
+      let [cy, cm] = [iy, im]
+      while (cy < fy || (cy === fy && cm <= fm)) {
+        mesesRango.push(`${cy}-${String(cm).padStart(2,'0')}`)
+        cm++
+        if (cm > 12) { cy++; cm = 1 }
       }
       setMeses(mesesRango)
 
