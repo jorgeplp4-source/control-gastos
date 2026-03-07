@@ -150,11 +150,15 @@ export function AppProvider({ children }) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
-    await supabase.from('user_settings').upsert({
+    const { error } = await supabase.from('user_settings').upsert({
       user_id: user.id,
       ...merged,
       updated_at: new Date().toISOString(),
-    })
+    }, { onConflict: 'user_id' })
+
+    if (error) {
+      console.error('[saveSettings] Error al guardar settings:', error)
+    }
   }, [settings])
 
   // ── i18n translate ──

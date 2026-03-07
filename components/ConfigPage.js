@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createClient } from '../lib/supabase-browser'
 import { useApp } from '../context/AppContext'
 import CatalogManager from './CatalogManager'
@@ -44,9 +44,10 @@ const SECCIONES = [
 
 export default function ConfigPage() {
   const supabase = createClient()
-  const { settings, saveSettings } = useApp()
+  const { settings, saveSettings, loadingSettings } = useApp()
+  const settingsInitRef = useRef(false)   // se inicializa local UNA sola vez al cargar desde DB
   const [seccion,       setSeccion]       = useState('apariencia')
-  const [local,         setLocal]         = useState({ theme:'system', currency:'ARS', language:'es' })
+  const [local,         setLocal]         = useState({ theme:'system', currency:'ARS', language:'es', dia_cierre_tarjeta: null })
   const [saving,        setSaving]        = useState(false)
   const [saved,         setSaved]         = useState(false)
   const [isMobile,      setIsMobile]      = useState(false)
@@ -57,14 +58,21 @@ export default function ConfigPage() {
   const [errorBorrado,  setErrorBorrado]  = useState(null)
   const [exito,         setExito]         = useState(false)
 
+  // Inicializar local UNA sola vez cuando settings se carga desde la DB.
+  // NO volver a correr en cada cambio de settings (eso causaba race condition:
+  // el usuario escribía el día de cierre → la carga async completaba → useEffect
+  // sobreescribía local con el valor viejo de la DB).
   useEffect(() => {
-    if (settings) setLocal({
-      theme:               settings.theme               || 'system',
-      currency:            settings.currency            || 'ARS',
-      language:            settings.language            || 'es',
-      dia_cierre_tarjeta:  settings.dia_cierre_tarjeta  ?? null,
-    })
-  }, [settings])
+    if (!loadingSettings && !settingsInitRef.current && settings) {
+      settingsInitRef.current = true
+      setLocal({
+        theme:               settings.theme               || 'system',
+        currency:            settings.currency            || 'ARS',
+        language:            settings.language            || 'es',
+        dia_cierre_tarjeta:  settings.dia_cierre_tarjeta  ?? null,
+      })
+    }
+  }, [loadingSettings, settings])
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768)
