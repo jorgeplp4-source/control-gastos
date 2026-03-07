@@ -10,7 +10,7 @@ App de registro y control de gastos con categorización de 4 niveles, autenticac
 
 ### PASO 1 — Crear proyecto en Supabase
 
-1. Ir a **https://supabase.com** → Sign Up (gratis)
+1. Ir a **https://supabase.com** → Sign Up (gratis.)
 2. Crear un nuevo proyecto (elegí región: South America)
 3. Esperar que termine de inicializarse (~2 min)
 4. Ir a **Settings → API** y copiar:
