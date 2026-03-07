@@ -10,6 +10,7 @@ const DEFAULT_SETTINGS = {
   currency_symbol: '$',
   date_format: 'DD/MM/YYYY',
   custom_categories: [],
+  dia_cierre_tarjeta: null,
 }
 
 const CURRENCIES = [

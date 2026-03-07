@@ -5,6 +5,7 @@ import { useUnits } from '../lib/useUnits'
 import { useItems } from '../lib/useItems'
 import { useCategories } from '../lib/useCategories'
 import { useVoiceInput, parseVoice, resolveVoice, speak } from '../lib/useVoiceInput'
+import { useApp } from '../context/AppContext'
 import ItemSearch from './ItemSearch'
 import {
   IconEditar, IconRegistrar, IconCerrar, IconGuardar,
@@ -27,9 +28,13 @@ const MEDIO_PAGO_OPTS = [
   { val: 'transferencia', label: 'Transfer.',     icon: '📲' },
 ]
 
-function calcFechaPrimeraCuota(fechaCompra) {
+function calcFechaPrimeraCuota(fechaCompra, diaCierre = null) {
   const d = new Date(fechaCompra + 'T12:00:00')
-  d.setMonth(d.getMonth() + 1)
+  const diaCompra = d.getDate()
+  // Si compramos DESPUÉS del día de cierre → entra al ciclo siguiente (+2 meses)
+  // Si compramos ANTES o EN el día de cierre → entra al ciclo actual (+1 mes)
+  const meses = (diaCierre && diaCompra > diaCierre) ? 2 : 1
+  d.setMonth(d.getMonth() + meses)
   return d.toISOString().split('T')[0]
 }
 
@@ -122,6 +127,8 @@ export default function ExpenseForm({ initial, onSave, onCancel }) {
   const { units }      = useUnits()
   const { items } = useItems()
   const { categories } = useCategories()
+  const { settings }   = useApp()
+  const diaCierre      = settings?.dia_cierre_tarjeta ?? null
 
   const blank = { n1:'', n2:'', n3:'', n4:'', cantidad:'', unidad:'unidad', monto:'', fecha:today, observaciones:'' }
   const [form,         setForm]         = useState(initial ? { ...initial } : blank)
@@ -187,7 +194,7 @@ export default function ExpenseForm({ initial, onSave, onCancel }) {
         _cuotas_config: {
           cuotas: cuotasVoz,
           monto_total: parseFloat(resolved.monto) || 0,
-          fecha_primera_cuota: calcFechaPrimeraCuota(today),
+          fecha_primera_cuota: calcFechaPrimeraCuota(today, diaCierre),
           medio_pago: medioPagoVoz,
         }
       }
@@ -270,7 +277,7 @@ export default function ExpenseForm({ initial, onSave, onCancel }) {
       gasto._cuotas_config = {
         cuotas,
         monto_total: parseFloat(form.monto),
-        fecha_primera_cuota: calcFechaPrimeraCuota(form.fecha),
+        fecha_primera_cuota: calcFechaPrimeraCuota(form.fecha, diaCierre),
         medio_pago: medioPago,
       }
     }
@@ -426,7 +433,23 @@ export default function ExpenseForm({ initial, onSave, onCancel }) {
                         <strong style={{ color:'var(--text-primary)' }}>
                           ${Math.round(parseFloat(form.monto) / cuotas).toLocaleString('es-AR')}
                         </strong>
-                        {' '}· primera cuota en {new Date(calcFechaPrimeraCuota(form.fecha || new Date().toISOString().split('T')[0]) + 'T12:00:00').toLocaleDateString('es-AR', { month:'long', year:'numeric' })}
+                        {(() => {
+                          const fechaBase = form.fecha || today
+                          const primeraCuota = new Date(calcFechaPrimeraCuota(fechaBase, diaCierre) + 'T12:00:00')
+                          const mesLabel = primeraCuota.toLocaleDateString('es-AR', { month:'long', year:'numeric' })
+                          const diaCompra = parseInt(fechaBase.split('-')[2])
+                          const afterCierre = diaCierre && diaCompra > diaCierre
+                          return (
+                            <>
+                              {' '}· primera cuota en <strong>{mesLabel}</strong>
+                              {afterCierre && (
+                                <span style={{ color:'#c2410c', fontSize:11, marginLeft:5 }}>
+                                  (después del cierre · ciclo siguiente)
+                                </span>
+                              )}
+                            </>
+                          )
+                        })()}
                       </span>
                     </div>
                   )}

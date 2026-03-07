@@ -1,5 +1,6 @@
 'use client'
 import { useMemo, useState } from 'react'
+import { useApp } from '../context/AppContext'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const fmt = (n) =>
@@ -198,6 +199,22 @@ export default function CuotasDashboard({ gastos = [] }) {
   const [mostrarSaldadas, setMostrarSaldadas] = useState(false)
   const [searchQ, setSearchQ]   = useState('')
   const [limit,   setLimit]     = useState(10)
+  const { settings } = useApp()
+  const diaCierre    = settings?.dia_cierre_tarjeta ?? null
+
+  // ── Próximo cierre ────────────────────────────────────────────────────────
+  const proximoCierre = useMemo(() => {
+    if (!diaCierre) return null
+    const hoy = new Date()
+    const [y, m] = [hoy.getFullYear(), hoy.getMonth()]
+    const maxD = new Date(y, m + 1, 0).getDate()
+    const dEfec = Math.min(diaCierre, maxD)
+    const thisMes = new Date(y, m, dEfec)
+    if (thisMes >= hoy) return thisMes
+    const nm = m + 1 > 11 ? 0 : m + 1
+    const ny = m + 1 > 11 ? y + 1 : y
+    return new Date(ny, nm, Math.min(diaCierre, new Date(ny, nm + 1, 0).getDate()))
+  }, [diaCierre])
 
   const toggle = (id) => setExpanded(prev => {
     const s = new Set(prev)
@@ -301,6 +318,15 @@ export default function CuotasDashboard({ gastos = [] }) {
             sub={fmtMes(kpis.proximaCuota.fecha)}
             color="#d97706"
             icon="⏰"
+          />
+        )}
+        {proximoCierre && (
+          <KpiCard
+            label="Próximo cierre"
+            value={`día ${diaCierre}`}
+            sub={proximoCierre.toLocaleDateString('es-AR', { day:'numeric', month:'short', year:'numeric' })}
+            color="#0891b2"
+            icon="🗓️"
           />
         )}
       </div>

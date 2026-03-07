@@ -9,7 +9,7 @@ import PresupuestosManager from './PresupuestosManager'
 import {
   IconTema, IconGlobo, IconIdioma, IconEtiquetas, IconRecurrentes, IconItems,
   IconClaro, IconOscuro, IconSistema, IconExito, IconGuardar, IconConfig, IconDinero,
-  IconPeligro, IconBorrar,
+  IconPeligro, IconBorrar, IconTarjeta,
 } from '../lib/icons'
 
 const CURRENCIES = [
@@ -34,7 +34,8 @@ const SECCIONES = [
   { id:'apariencia', label:'Apariencia',    Icon:IconTema,       group:'Preferencias' },
   { id:'regional',   label:'Regional',      Icon:IconGlobo,      group:'Preferencias' },
   { id:'idioma',     label:'Idioma',        Icon:IconIdioma,     group:'Preferencias' },
-  { id:'catalogo',   label:'Catálogo',      Icon:IconEtiquetas,  group:'Datos' },
+  { id:'tarjeta',    label:'Tarjeta Crédito', Icon:IconTarjeta,   group:'Preferencias' },
+  { id:'catalogo',   label:'Catálogo',       Icon:IconEtiquetas,  group:'Datos' },
   { id:'unidades',   label:'Unidades',      Icon:IconItems,      group:'Datos' },
   { id:'recurrentes',   label:'Recurrentes',   Icon:IconRecurrentes, group:'Datos'       },
   { id:'presupuestos',  label:'Presupuestos',  Icon:IconDinero,      group:'Alertas'     },
@@ -58,9 +59,10 @@ export default function ConfigPage() {
 
   useEffect(() => {
     if (settings) setLocal({
-      theme:    settings.theme    || 'system',
-      currency: settings.currency || 'ARS',
-      language: settings.language || 'es',
+      theme:               settings.theme               || 'system',
+      currency:            settings.currency            || 'ARS',
+      language:            settings.language            || 'es',
+      dia_cierre_tarjeta:  settings.dia_cierre_tarjeta  ?? null,
     })
   }, [settings])
 
@@ -151,6 +153,75 @@ export default function ConfigPage() {
                 <span style={{ fontSize:20 }}>{opt.flag}</span>{opt.label}
               </button>
             ))}
+          </div>
+        </Section>
+      )
+
+      case 'tarjeta': return (
+        <Section title="Tarjeta de Crédito" Icon={IconTarjeta}>
+          <div>
+            <label style={LBL}>Día de cierre del resumen</label>
+            <p style={{ fontSize:13, color:'var(--text-muted)', margin:'4px 0 14px', lineHeight:1.5 }}>
+              El día del mes en que cierra el resumen de tu tarjeta de crédito.
+              Esto determina cuándo entra cada compra al ciclo de facturación.
+            </p>
+            <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+              <input
+                type="number"
+                min={1} max={31}
+                value={local.dia_cierre_tarjeta ?? ''}
+                onChange={e => {
+                  const raw = e.target.value
+                  if (raw === '') { setL('dia_cierre_tarjeta', null); return }
+                  const v = Math.max(1, Math.min(31, parseInt(raw) || 1))
+                  setL('dia_cierre_tarjeta', v)
+                }}
+                placeholder="Ej: 15"
+                style={{ ...inp, width:80 }}
+              />
+              <span style={{ fontSize:14, color:'var(--text-muted)' }}>de cada mes</span>
+            </div>
+
+            {local.dia_cierre_tarjeta && (() => {
+              const dia = local.dia_cierre_tarjeta
+              const today = new Date()
+              const todayDay = today.getDate()
+              // Próximo cierre
+              const proximoCierre = (() => {
+                const [y, m] = [today.getFullYear(), today.getMonth()]
+                const maxD = new Date(y, m + 1, 0).getDate()
+                const dEfec = Math.min(dia, maxD)
+                const thisClose = new Date(y, m, dEfec)
+                if (thisClose >= today) return thisClose
+                const nm = m + 1 > 11 ? 0 : m + 1
+                const ny = m + 1 > 11 ? y + 1 : y
+                const maxD2 = new Date(ny, nm + 1, 0).getDate()
+                return new Date(ny, nm, Math.min(dia, maxD2))
+              })()
+              const fmtClose = proximoCierre.toLocaleDateString('es-AR', { day:'numeric', month:'long', year:'numeric' })
+              // Simular compra hoy
+              const mesesSumar = todayDay > dia ? 2 : 1
+              const primeraCuota = new Date(today.getFullYear(), today.getMonth() + mesesSumar, 1)
+              const fmtCuota = primeraCuota.toLocaleDateString('es-AR', { month:'long', year:'numeric' })
+              const afterCierre = todayDay > dia
+
+              return (
+                <div style={{ marginTop:16, display:'flex', flexDirection:'column', gap:10 }}>
+                  <div style={{ padding:'12px 14px', background:'var(--surface2)', borderRadius:10, border:'1px solid var(--border)', fontSize:13, display:'flex', alignItems:'flex-start', gap:10 }}>
+                    <span style={{ fontSize:18 }}>📅</span>
+                    <div>
+                      <div style={{ fontWeight:700, color:'var(--text)', marginBottom:3 }}>Próximo cierre: {fmtClose}</div>
+                      <div style={{ color:'var(--text-muted)', lineHeight:1.5 }}>
+                        {afterCierre
+                          ? <>Comprás hoy (día {todayDay}) <strong style={{ color:'#c2410c' }}>después del cierre</strong> → la compra entra al ciclo siguiente → primera cuota en <strong>{fmtCuota}</strong></>
+                          : <>Comprás hoy (día {todayDay}) <strong style={{ color:'#059669' }}>antes del cierre</strong> → la compra entra al ciclo actual → primera cuota en <strong>{fmtCuota}</strong></>
+                        }
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )
+            })()}
           </div>
         </Section>
       )
