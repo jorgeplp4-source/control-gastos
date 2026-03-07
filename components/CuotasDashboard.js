@@ -73,7 +73,7 @@ function CuotaPill({ c, total }) {
 }
 
 // ── Purchase card ─────────────────────────────────────────────────────────────
-function PurchaseCard({ p, isExpanded, onToggle }) {
+function PurchaseCard({ p, isExpanded, onToggle, onDeleteRequest }) {
   const pagadas   = p.cuotas.filter(c => c.fecha && c.fecha.substring(0, 7) <= CUR_MONTH).length
   const pct       = Math.round((pagadas / p.cuotas_total) * 100)
   const isActive  = p.cuotas.some(c => c.fecha && c.fecha.substring(0, 7) > CUR_MONTH)
@@ -155,6 +155,13 @@ function PurchaseCard({ p, isExpanded, onToggle }) {
           )}
         </div>
 
+        {/* Botón eliminar */}
+        <button
+          onClick={e => { e.stopPropagation(); onDeleteRequest(p) }}
+          title="Eliminar compra"
+          style={{ border:'none', background:'none', cursor:'pointer', color:'var(--text-muted)', padding:'4px 6px', borderRadius:6, flexShrink:0, fontSize:14, lineHeight:1, display:'flex', alignItems:'center' }}
+        >🗑️</button>
+
         {/* Chevron */}
         <span style={{
           color: 'var(--text-muted)', fontSize: 14, flexShrink: 0,
@@ -194,11 +201,12 @@ function PurchaseCard({ p, isExpanded, onToggle }) {
 // ── Main component ────────────────────────────────────────────────────────────
 const LIMIT_OPTS = [5, 10, 20, 0]   // 0 = Todas
 
-export default function CuotasDashboard({ gastos = [] }) {
+export default function CuotasDashboard({ gastos = [], onDelete }) {
   const [expanded, setExpanded] = useState(new Set())
   const [mostrarSaldadas, setMostrarSaldadas] = useState(false)
   const [searchQ, setSearchQ]   = useState('')
   const [limit,   setLimit]     = useState(10)
+  const [deleteTarget, setDeleteTarget] = useState(null)   // purchase a confirmar borrado
   const { settings } = useApp()
   const diaCierre    = settings?.dia_cierre_tarjeta ?? null
 
@@ -401,10 +409,92 @@ export default function CuotasDashboard({ gastos = [] }) {
               p={p}
               isExpanded={expanded.has(p.compra_id)}
               onToggle={() => toggle(p.compra_id)}
+              onDeleteRequest={setDeleteTarget}
             />
           ))
         )}
       </div>
+
+      {/* ── Modal eliminar compra ──────────────────────────────────────────── */}
+      {deleteTarget && (() => {
+        const p         = deleteTarget
+        const nombre    = p.nombre || 'esta compra'
+        const pendientes = p.cuotas.filter(c => c.fecha && c.fecha.substring(0, 7) >= CUR_MONTH)
+        const pasadas    = p.cuotas.filter(c => c.fecha && c.fecha.substring(0, 7) <  CUR_MONTH)
+        const primerPend = pendientes.sort((a, b) => (a.cuota_numero || 0) - (b.cuota_numero || 0))[0]
+
+        const cerrar = () => setDeleteTarget(null)
+        const BTN = { padding:'10px 14px', borderRadius:10, fontWeight:700, fontSize:13, cursor:'pointer', border:'none', textAlign:'left', width:'100%' }
+
+        return (
+          <div onClick={cerrar} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.5)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:16 }} role="dialog" aria-modal="true">
+            <div onClick={e => e.stopPropagation()} style={{ background:'var(--surface)', borderRadius:18, padding:24, maxWidth:380, width:'100%', boxShadow:'var(--shadow-lg)' }}>
+
+              <div style={{ fontWeight:800, fontSize:16, marginBottom:4 }}>🗑️ Eliminar "{nombre}"</div>
+              <div style={{ fontSize:12, color:'var(--text-muted)', marginBottom:16 }}>
+                {MEDIO_LABEL[p.medio_pago] || p.medio_pago} · {p.cuotas_total} cuotas · {fmtMes(p.fecha_compra)}
+              </div>
+
+              {/* Resumen pasadas / pendientes */}
+              <div style={{ display:'flex', gap:8, marginBottom:18 }}>
+                {pasadas.length > 0 && (
+                  <div style={{ flex:1, padding:'8px 10px', background:'#d1fae5', borderRadius:8, textAlign:'center', fontSize:12 }}>
+                    <div style={{ fontWeight:800, color:'#065f46', fontSize:16 }}>{pasadas.length}</div>
+                    <div style={{ color:'#065f46' }}>pagada{pasadas.length > 1 ? 's' : ''}</div>
+                  </div>
+                )}
+                {pendientes.length > 0 && (
+                  <div style={{ flex:1, padding:'8px 10px', background:'#fee2e2', borderRadius:8, textAlign:'center', fontSize:12 }}>
+                    <div style={{ fontWeight:800, color:'#991b1b', fontSize:16 }}>{pendientes.length}</div>
+                    <div style={{ color:'#991b1b' }}>pendiente{pendientes.length > 1 ? 's' : ''}</div>
+                  </div>
+                )}
+              </div>
+
+              <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                {/* Opción 1: solo pendientes */}
+                {primerPend && (
+                  <button
+                    onClick={() => {
+                      onDelete?.({ mode:'from', compra_id:p.compra_id, desde_numero:primerPend.cuota_numero, cuotasTotal:p.cuotas_total })
+                      cerrar()
+                    }}
+                    style={{ ...BTN, background:'#fef3c7', color:'#92400e', border:'1.5px solid #fbbf24' }}
+                  >
+                    ⚡ Cancelar cuotas pendientes ({pendientes.length})
+                    {pasadas.length > 0 && (
+                      <span style={{ display:'block', fontWeight:400, fontSize:11, marginTop:3 }}>
+                        Preserva las {pasadas.length} cuota{pasadas.length > 1 ? 's' : ''} ya pagada{pasadas.length > 1 ? 's' : ''} en el historial
+                      </span>
+                    )}
+                  </button>
+                )}
+
+                {/* Opción 2: toda la compra */}
+                <button
+                  onClick={() => {
+                    onDelete?.({ mode:'all', compra_id:p.compra_id, totalCuotas:p.cuotas_total })
+                    cerrar()
+                  }}
+                  style={{ ...BTN, background:'#fee2e2', color:'#991b1b', border:'1.5px solid #fca5a5' }}
+                >
+                  🗑️ Eliminar toda la compra ({p.cuotas_total} cuotas)
+                  {pasadas.length > 0 && (
+                    <span style={{ display:'block', fontWeight:400, fontSize:11, marginTop:3 }}>
+                      Incluye las {pasadas.length} cuota{pasadas.length > 1 ? 's' : ''} ya registradas
+                    </span>
+                  )}
+                </button>
+
+                <button onClick={cerrar} style={{ ...BTN, background:'transparent', color:'var(--text-muted)', fontSize:12, fontWeight:600, border:'none', textAlign:'center' }}>
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
     </div>
   )
 }

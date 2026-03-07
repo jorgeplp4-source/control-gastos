@@ -145,10 +145,38 @@ export default function Home() {
     )
   }
 
-  const handleDelete = async (id) => {
-    await fetch(`/api/gastos?id=${id}`, { method: 'DELETE' })
-    setGastos(prev => prev.filter(g => g.id !== id))
-    showToast('Gasto eliminado', false)
+  const handleDelete = async (action) => {
+    // Compatibilidad hacia atrás: si llega un string simple, tratar como modo 'single'
+    if (typeof action === 'string') action = { mode: 'single', id: action }
+
+    let url, toastMsg
+
+    if (action.mode === 'single') {
+      url      = `/api/gastos?id=${action.id}`
+      toastMsg = 'Gasto eliminado'
+    } else if (action.mode === 'all') {
+      url      = `/api/gastos?compra_id=${action.compra_id}`
+      const n  = action.totalCuotas || ''
+      toastMsg = `Compra eliminada${n ? ` (${n} cuotas)` : ''}`
+    } else if (action.mode === 'from') {
+      url      = `/api/gastos?compra_id=${action.compra_id}&desde_numero=${action.desde_numero}`
+      const cant = (action.cuotasTotal || 0) - (action.desde_numero || 1) + 1
+      toastMsg = `${cant} cuota${cant !== 1 ? 's' : ''} cancelada${cant !== 1 ? 's' : ''}`
+    }
+
+    await fetch(url, { method: 'DELETE' })
+
+    if (action.mode === 'single') {
+      setGastos(prev => prev.filter(g => g.id !== action.id))
+    } else if (action.mode === 'all') {
+      setGastos(prev => prev.filter(g => g.compra_id !== action.compra_id))
+    } else if (action.mode === 'from') {
+      setGastos(prev => prev.filter(g =>
+        !(g.compra_id === action.compra_id && (g.cuota_numero || 0) >= action.desde_numero)
+      ))
+    }
+
+    showToast(toastMsg, false)
   }
 
   const handleRefreshGastos = async () => {
@@ -255,7 +283,7 @@ export default function Home() {
         {tab === 'registro'      && <ExpenseForm key={editTarget?.id || 'new'} initial={editTarget} onSave={handleSave} onCancel={() => { setEditTarget(null); setTab('listado') }} />}
         {tab === 'listado'       && <ListView   gastos={gastos} onDelete={handleDelete} onEdit={g => { setEditTarget(g); setTab('registro') }} onRefresh={handleRefreshGastos} />}
         {tab === 'ingresos'      && <IngresosPage />}
-        {tab === 'cuotas'        && <CuotasDashboard gastos={gastos} />}
+        {tab === 'cuotas'        && <CuotasDashboard gastos={gastos} onDelete={handleDelete} />}
         {tab === 'inflacion'     && <InflacionDashboard />}
         {tab === 'asesor'        && <AsesorPage gastos={gastos} />}
         {tab === 'configuracion' && <ConfigPage />}

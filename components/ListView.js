@@ -711,7 +711,7 @@ export default function ListView({ gastos, onDelete, onEdit, onRefresh }) {
   const [periodo,  setPeriodo]    = useState('mes')
   const [sortField,setSortField]  = useState('fecha')
   const [sortDir,  setSortDir]    = useState('desc')
-  const [confirmId,setConfirmId]  = useState(null)
+  const [confirmGasto, setConfirmGasto] = useState(null)   // gasto completo, no solo id
   const [pageSize, setPageSize]   = useState(50)
 
   // Recurrencia quick-edit
@@ -823,20 +823,122 @@ export default function ListView({ gastos, onDelete, onEdit, onRefresh }) {
       {/* MAIN content */}
       <div style={{ flex:1, display:'flex', flexDirection:'column', gap:10, minWidth:0 }}>
 
-        {/* Delete confirm */}
-        {confirmId && (
-          <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.45)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center' }} role="dialog" aria-modal="true">
-            <div style={{ background:'var(--surface)', borderRadius:16, padding:28, maxWidth:300, width:'90%', textAlign:'center', boxShadow:'var(--shadow-lg)' }}>
-              <IconAdvertencia size={34} weight="duotone" color="#ef4444" style={{ marginBottom:8 }} aria-hidden="true" />
-              <h3 style={{ margin:'0 0 6px', fontSize:15 }}>¿Eliminar este gasto?</h3>
-              <p style={{ color:'var(--text-muted)', fontSize:12, marginBottom:18 }}>Esta acción no se puede deshacer.</p>
-              <div style={{ display:'flex', gap:8, justifyContent:'center' }}>
-                <button onClick={() => setConfirmId(null)} style={{ padding:'7px 16px', borderRadius:8, border:'1.5px solid var(--border)', background:'var(--surface)', color:'var(--text-secondary)', fontWeight:600, fontSize:13, cursor:'pointer' }}>Cancelar</button>
-                <button onClick={() => { onDelete(confirmId); setConfirmId(null) }} style={{ padding:'7px 16px', borderRadius:8, border:'none', background:'#ef4444', color:'#fff', fontWeight:700, fontSize:13, cursor:'pointer' }}>Eliminar</button>
+        {/* Delete confirm — modal inteligente */}
+        {confirmGasto && (() => {
+          const g       = confirmGasto
+          const curMes  = new Date().toISOString().substring(0, 7)
+          const esCuota = g.compra_id && g.cuotas_total > 1
+          const esPasada = g.fecha && g.fecha.substring(0, 7) < curMes
+          const nombre  = (g.n4 || '').replace(/\s*\(\d+\/\d+\)$/, '').trim() || g.n3 || g.n2 || 'Gasto'
+          const mesLabel = g.fecha
+            ? new Date(g.fecha + 'T12:00:00').toLocaleDateString('es-AR', { month: 'long', year: 'numeric' })
+            : ''
+          const numAntes   = (g.cuota_numero || 1) - 1           // cuotas ya registradas ANTES de esta
+          const numDesde   = g.cuota_numero || 1                  // esta cuota en adelante
+          const numRestantes = (g.cuotas_total || 1) - numDesde + 1
+
+          const cerrar = () => setConfirmGasto(null)
+          const BTN_BASE = { padding:'8px 14px', borderRadius:8, fontWeight:700, fontSize:12, cursor:'pointer', border:'none' }
+
+          return (
+            <div onClick={cerrar} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.5)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:16 }} role="dialog" aria-modal="true">
+              <div onClick={e => e.stopPropagation()} style={{ background:'var(--surface)', borderRadius:16, padding:24, maxWidth:360, width:'100%', boxShadow:'var(--shadow-lg)' }}>
+
+                {/* Header */}
+                <div style={{ display:'flex', alignItems:'flex-start', gap:12, marginBottom:16 }}>
+                  <IconAdvertencia size={30} weight="duotone" color="#ef4444" style={{ flexShrink:0, marginTop:2 }} aria-hidden="true" />
+                  <div>
+                    <div style={{ fontWeight:700, fontSize:15, color:'var(--text)' }}>
+                      {esCuota ? `Cuota ${g.cuota_numero}/${g.cuotas_total} de "${nombre}"` : `"${nombre}"`}
+                    </div>
+                    {mesLabel && (
+                      <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:2 }}>
+                        {mesLabel}{esPasada ? ' · ya registrada' : ''}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Contexto de cuotas */}
+                {esCuota && (
+                  <div style={{ background:'var(--surface2)', borderRadius:10, padding:'10px 12px', marginBottom:16, fontSize:12 }}>
+                    {numAntes > 0 && (
+                      <div style={{ color:'#059669', marginBottom:4 }}>
+                        ✓ Cuota{numAntes > 1 ? 's' : ''} {numAntes === 1 ? '1' : `1 a ${numAntes}`} ya registrada{numAntes > 1 ? 's' : ''} (historial)
+                      </div>
+                    )}
+                    <div style={{ color: esPasada ? '#6b7280' : '#c2410c', fontWeight:600 }}>
+                      {esPasada
+                        ? `● Esta cuota (${g.cuota_numero}) ya fue registrada como gasto`
+                        : `● Cuota${numRestantes > 1 ? `s ${numDesde} a ${g.cuotas_total}` : ` ${numDesde}`}: pendiente${numRestantes > 1 ? 's' : ''}`
+                      }
+                    </div>
+                  </div>
+                )}
+
+                {/* Botones según contexto */}
+                {!esCuota && (
+                  <>
+                    <p style={{ color:'var(--text-muted)', fontSize:12, marginBottom:16 }}>Esta acción no se puede deshacer.</p>
+                    <div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
+                      <button onClick={cerrar} style={{ ...BTN_BASE, background:'var(--surface2)', color:'var(--text-secondary)', border:'1.5px solid var(--border)' }}>Cancelar</button>
+                      <button onClick={() => { onDelete({ mode:'single', id:g.id }); cerrar() }} style={{ ...BTN_BASE, background:'#ef4444', color:'#fff' }}>Eliminar</button>
+                    </div>
+                  </>
+                )}
+
+                {esCuota && esPasada && (
+                  <>
+                    <p style={{ color:'var(--text-muted)', fontSize:12, marginBottom:16 }}>
+                      Esta cuota pertenece a un mes ya cerrado. Las cuotas restantes no se verán afectadas.
+                    </p>
+                    <div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
+                      <button onClick={cerrar} style={{ ...BTN_BASE, background:'var(--surface2)', color:'var(--text-secondary)', border:'1.5px solid var(--border)' }}>Cancelar</button>
+                      <button onClick={() => { onDelete({ mode:'single', id:g.id }); cerrar() }} style={{ ...BTN_BASE, background:'#ef4444', color:'#fff' }}>Borrar del historial</button>
+                    </div>
+                  </>
+                )}
+
+                {esCuota && !esPasada && (
+                  <>
+                    <p style={{ color:'var(--text-muted)', fontSize:12, marginBottom:12 }}>¿Qué querés hacer?</p>
+                    <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                      <button
+                        onClick={() => { onDelete({ mode:'from', compra_id:g.compra_id, desde_numero:numDesde, cuotasTotal:g.cuotas_total }); cerrar() }}
+                        style={{ ...BTN_BASE, background:'#fef3c7', color:'#92400e', border:'1.5px solid #fbbf24', textAlign:'left' }}
+                      >
+                        ⚡ Cancelar cuota{numRestantes > 1 ? `s ${numDesde} a ${g.cuotas_total}` : ` ${numDesde}`}
+                        <span style={{ display:'block', fontWeight:400, fontSize:11, marginTop:2 }}>
+                          {numAntes > 0 ? `Preserva el historial de ${numAntes} cuota${numAntes > 1 ? 's' : ''} anterior${numAntes > 1 ? 'es' : ''}` : 'Cancela toda la deuda pendiente'}
+                        </span>
+                      </button>
+                      <button
+                        onClick={() => { onDelete({ mode:'all', compra_id:g.compra_id, totalCuotas:g.cuotas_total }); cerrar() }}
+                        style={{ ...BTN_BASE, background:'#fee2e2', color:'#991b1b', border:'1.5px solid #fca5a5', textAlign:'left' }}
+                      >
+                        🗑️ Eliminar toda la compra ({g.cuotas_total} cuotas)
+                        <span style={{ display:'block', fontWeight:400, fontSize:11, marginTop:2 }}>
+                          Incluye cuotas anteriores ya registradas
+                        </span>
+                      </button>
+                      <button
+                        onClick={() => { onDelete({ mode:'single', id:g.id }); cerrar() }}
+                        style={{ ...BTN_BASE, background:'var(--surface2)', color:'var(--text-secondary)', border:'1.5px solid var(--border)', textAlign:'left' }}
+                      >
+                        Solo esta cuota ({g.cuota_numero}/{g.cuotas_total})
+                        <span style={{ display:'block', fontWeight:400, fontSize:11, marginTop:2 }}>Las demás cuotas quedan intactas</span>
+                      </button>
+                      <button onClick={cerrar} style={{ ...BTN_BASE, background:'transparent', color:'var(--text-muted)', fontSize:12, fontWeight:600, border:'none' }}>
+                        Cancelar
+                      </button>
+                    </div>
+                  </>
+                )}
+
               </div>
             </div>
-          </div>
-        )}
+          )
+        })()}
 
         {/* Recurrencia quick-edit modal */}
         {editRecGasto && (
@@ -1062,7 +1164,7 @@ export default function ListView({ gastos, onDelete, onEdit, onRefresh }) {
                                 style={{ border:'none', background:'none', cursor:'pointer', color: rec ? '#f59e0b' : 'var(--text-muted)', padding:'3px', borderRadius:5, marginRight:2, display:'inline-flex' }}>
                                 <IconRecurrentes size={14} aria-hidden="true" />
                               </button>
-                              <button onClick={() => setConfirmId(g.id)} aria-label={`Eliminar ${g.n4}`}
+                              <button onClick={() => setConfirmGasto(g)} aria-label={`Eliminar ${g.n4}`}
                                 style={{ border:'none', background:'none', cursor:'pointer', color:'var(--text-muted)', padding:'3px', borderRadius:5, display:'inline-flex' }}>
                                 <IconEliminar size={14} aria-hidden="true" />
                               </button>

@@ -135,7 +135,21 @@ export async function DELETE(request) {
   const compra_id = searchParams.get('compra_id')
 
   if (compra_id) {
-    // Eliminar todas las cuotas de la misma compra
+    const desde_numero = searchParams.get('desde_numero')
+
+    if (desde_numero) {
+      // Eliminar cuotas desde la número X en adelante (cancelar pendientes)
+      const { error } = await supabase
+        .from('gastos')
+        .delete()
+        .eq('compra_id', compra_id)
+        .eq('user_id', user.id)
+        .gte('cuota_numero', parseInt(desde_numero))
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+      return NextResponse.json({ ok: true, deleted: 'from_cuota', desde_numero })
+    }
+
+    // Eliminar TODAS las cuotas de la compra
     const { error } = await supabase
       .from('gastos')
       .delete()
