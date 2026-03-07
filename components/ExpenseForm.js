@@ -143,6 +143,10 @@ export default function ExpenseForm({ initial, onSave, onCancel }) {
   const voiceAbort = useRef(false)
   const itemsRef    = useRef(items)
 
+  // ── Edición de cuota grupal ───────────────────────────────────────────────
+  const isEditCuota      = !!(initial?.compra_id && (initial?.cuotas_total || 1) > 1)
+  const [cuotaEditModal, setCuotaEditModal] = useState(null)   // { cambios } | null
+
   // ── Estado cuotas / medio de pago ─────────────────────────────────────────
   const [medioPago, setMedioPago] = useState(initial?.medio_pago || 'efectivo')
   const [cuotas,    setCuotas]    = useState(initial?.cuotas_total || 1)
@@ -257,8 +261,49 @@ export default function ExpenseForm({ initial, onSave, onCancel }) {
 
   const valid = form.n1 && form.n4 && form.cantidad && form.monto && form.fecha
 
+  // ── Detectar cambios al editar una cuota grupal ──────────────────────────
+  const detectarCambios = () => {
+    const orig = initial
+    const cambios = {}
+    // Categoría
+    if (form.n1 !== orig.n1 || form.n2 !== orig.n2 || form.n3 !== orig.n3) {
+      cambios.categoria = { de: [orig.n1,orig.n2,orig.n3].filter(Boolean).join(' › '), a: [form.n1,form.n2,form.n3].filter(Boolean).join(' › ') }
+    }
+    // Nombre (n4 sin sufijo de cuota)
+    const n4Orig  = (orig.n4 || '').replace(/\s*\(\d+\/\d+\)$/, '').trim()
+    const n4Nuevo = (form.n4 || '').replace(/\s*\(\d+\/\d+\)$/, '').trim()
+    if (n4Orig !== n4Nuevo) cambios.nombre = { de: n4Orig, a: n4Nuevo }
+    // Monto
+    const mOrig = parseFloat(orig.monto), mNuevo = parseFloat(form.monto)
+    if (!isNaN(mNuevo) && Math.abs(mNuevo - mOrig) > 0.01)
+      cambios.monto = { de: mOrig, a: mNuevo, choice: 'recalcular' }
+    // Cuotas total
+    const cOrig = orig.cuotas_total || 1
+    if (cuotas !== cOrig) cambios.cuotas = { de: cOrig, a: cuotas }
+    // Fecha
+    if (form.fecha !== orig.fecha) {
+      const fO = new Date(orig.fecha + 'T12:00:00'), fN = new Date(form.fecha + 'T12:00:00')
+      const diffMeses = (fN.getFullYear() - fO.getFullYear()) * 12 + (fN.getMonth() - fO.getMonth())
+      cambios.fecha = { de: orig.fecha, a: form.fecha, diffMeses, choice: 'desplazar' }
+    }
+    // Medio de pago
+    if (medioPago !== orig.medio_pago) cambios.medioPago = { de: orig.medio_pago, a: medioPago }
+    // Observaciones (individual, no requiere elección)
+    if ((form.observaciones || '') !== (orig.observaciones || '')) cambios.observaciones = true
+    return cambios
+  }
+
   const handleSubmit = async () => {
     if (!valid || saving) return
+
+    // Interceptar edición de cuota grupal para mostrar modal de confirmación
+    if (isEditCuota) {
+      const cambios = detectarCambios()
+      if (Object.keys(cambios).length === 0) { onCancel?.(); return }
+      setCuotaEditModal({ cambios })
+      return
+    }
+
     setSaving(true)
     const gasto = {
       ...form,
@@ -283,6 +328,29 @@ export default function ExpenseForm({ initial, onSave, onCancel }) {
     }
     await onSave(gasto)
     setSaving(false)
+  }
+
+  // ── Confirmar edición de cuota grupal ─────────────────────────────────────
+  const confirmarEdicionCuota = async () => {
+    const { cambios } = cuotaEditModal
+    setSaving(true)
+    const n4Base = (form.n4 || '').replace(/\s*\(\d+\/\d+\)$/, '').trim()
+    const _cuota_edit = {
+      compra_id:       initial.compra_id,
+      cuota_numero:    initial.cuota_numero,
+      cuotas_total_orig: initial.cuotas_total,
+    }
+    if (cambios.categoria || cambios.nombre || cambios.medioPago) _cuota_edit.propagar_meta = true
+    if (cambios.monto) { _cuota_edit.monto_accion = cambios.monto.choice; _cuota_edit.monto_nuevo = cambios.monto.a }
+    if (cambios.cuotas) { _cuota_edit.cuotas_de = cambios.cuotas.de; _cuota_edit.cuotas_a = cambios.cuotas.a }
+    if (cambios.fecha)  { _cuota_edit.fecha_accion = cambios.fecha.choice; _cuota_edit.fecha_nueva = cambios.fecha.a; _cuota_edit.fecha_orig = cambios.fecha.de; _cuota_edit.diff_meses = cambios.fecha.diffMeses }
+    if (cambios.observaciones) _cuota_edit.observaciones_individual = form.observaciones
+
+    await onSave({ ...form, id: initial.id, compra_id: initial.compra_id,
+      cantidad: parseFloat(form.cantidad), monto: parseFloat(form.monto),
+      medio_pago: medioPago, cuotas_total: cuotas, n4: n4Base, _cuota_edit })
+    setSaving(false)
+    setCuotaEditModal(null)
   }
 
   const activeColor = (N1_COLORS[form.n1]||{}).bg || '#3b82f6'
@@ -316,6 +384,17 @@ export default function ExpenseForm({ initial, onSave, onCancel }) {
             </h2>
             {initial && <button onClick={onCancel} style={{ border:'none', background:'none', color:'var(--text-muted)', cursor:'pointer', display:'flex', padding:4 }}><IconCerrar size={22}/></button>}
           </div>
+
+          {/* Banner: editando cuota grupal */}
+          {isEditCuota && (
+            <div style={{ padding:'8px 14px', background:'#e0f2fe', borderRadius:9, border:'1px solid #bae6fd', fontSize:12, marginBottom:16, display:'flex', alignItems:'center', gap:8 }}>
+              <span>💳</span>
+              <span style={{ color:'#0369a1' }}>
+                <strong>Editando cuota {initial.cuota_numero}/{initial.cuotas_total}</strong>
+                {' '}— categoría y medio de pago se propagan a todas las cuotas. Al guardar verás un resumen de cambios.
+              </span>
+            </div>
+          )}
 
           {/* ── Bloque ítem + voz ── */}
           <div style={{ background:'var(--surface2)', borderRadius:14, padding:20, marginBottom:22, border:'1px solid var(--border)' }}>
@@ -566,6 +645,112 @@ export default function ExpenseForm({ initial, onSave, onCancel }) {
           </div>
         </div>
       </div>
+
+      {/* ── Modal de confirmación de edición de cuotas ── */}
+      {cuotaEditModal && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.55)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}>
+          <div style={{ background:'var(--surface)', borderRadius:18, padding:28, maxWidth:480, width:'100%', boxShadow:'var(--shadow-lg)', border:'1px solid var(--border)' }}>
+            <h3 style={{ margin:'0 0 4px', fontSize:16, fontWeight:800, color:'var(--text-primary)' }}>
+              💳 Confirmar cambios en cuotas
+            </h3>
+            <p style={{ margin:'0 0 18px', fontSize:12, color:'var(--text-muted)' }}>
+              Cuota {initial?.cuota_numero}/{initial?.cuotas_total} — elegí cómo aplicar cada cambio.
+            </p>
+
+            <div style={{ display:'flex', flexDirection:'column', gap:12, marginBottom:20 }}>
+
+              {/* Categoría / nombre / medio de pago → se propagan a todas */}
+              {(cuotaEditModal.cambios.categoria || cuotaEditModal.cambios.nombre || cuotaEditModal.cambios.medioPago) && (
+                <div style={{ padding:'10px 14px', background:'#f0fdf4', borderRadius:10, border:'1px solid #bbf7d0', fontSize:12 }}>
+                  <div style={{ fontWeight:700, color:'#166534', marginBottom:6 }}>✅ Se aplica a TODAS las cuotas</div>
+                  {cuotaEditModal.cambios.categoria && (
+                    <div style={{ color:'#166534' }}>· Categoría: <strong>{cuotaEditModal.cambios.categoria.de || '—'}</strong> → <strong>{cuotaEditModal.cambios.categoria.a}</strong></div>
+                  )}
+                  {cuotaEditModal.cambios.nombre && (
+                    <div style={{ color:'#166534' }}>· Nombre: <strong>{cuotaEditModal.cambios.nombre.de}</strong> → <strong>{cuotaEditModal.cambios.nombre.a}</strong></div>
+                  )}
+                  {cuotaEditModal.cambios.medioPago && (
+                    <div style={{ color:'#166534' }}>· Medio de pago: <strong>{cuotaEditModal.cambios.medioPago.de}</strong> → <strong>{cuotaEditModal.cambios.medioPago.a}</strong></div>
+                  )}
+                </div>
+              )}
+
+              {/* Monto → elección */}
+              {cuotaEditModal.cambios.monto && (
+                <div style={{ padding:'10px 14px', background:'#fffbeb', borderRadius:10, border:'1px solid #fde68a', fontSize:12 }}>
+                  <div style={{ fontWeight:700, color:'#92400e', marginBottom:8 }}>
+                    💰 Monto: ${cuotaEditModal.cambios.monto.de.toLocaleString('es-AR')} → ${cuotaEditModal.cambios.monto.a.toLocaleString('es-AR')} — ¿aplicar a?
+                  </div>
+                  <div style={{ display:'flex', gap:8 }}>
+                    <button
+                      onClick={() => setCuotaEditModal(p => ({ ...p, cambios: { ...p.cambios, monto: { ...p.cambios.monto, choice:'recalcular' } } }))}
+                      style={{ flex:1, padding:'8px', borderRadius:8, border:`2px solid ${cuotaEditModal.cambios.monto.choice==='recalcular'?'#d97706':'var(--border)'}`, background:cuotaEditModal.cambios.monto.choice==='recalcular'?'#fef3c7':'var(--surface)', fontSize:11, fontWeight:700, cursor:'pointer', color:'#92400e' }}>
+                      Todas las cuotas
+                    </button>
+                    <button
+                      onClick={() => setCuotaEditModal(p => ({ ...p, cambios: { ...p.cambios, monto: { ...p.cambios.monto, choice:'solo_esta' } } }))}
+                      style={{ flex:1, padding:'8px', borderRadius:8, border:`2px solid ${cuotaEditModal.cambios.monto.choice==='solo_esta'?'#d97706':'var(--border)'}`, background:cuotaEditModal.cambios.monto.choice==='solo_esta'?'#fef3c7':'var(--surface)', fontSize:11, fontWeight:700, cursor:'pointer', color:'#92400e' }}>
+                      Solo esta cuota
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Cuotas total */}
+              {cuotaEditModal.cambios.cuotas && (
+                <div style={{ padding:'10px 14px', background:'#eff6ff', borderRadius:10, border:'1px solid #bfdbfe', fontSize:12 }}>
+                  <div style={{ fontWeight:700, color:'#1e40af' }}>
+                    🔢 Cuotas: {cuotaEditModal.cambios.cuotas.de} → {cuotaEditModal.cambios.cuotas.a}
+                    {cuotaEditModal.cambios.cuotas.a > cuotaEditModal.cambios.cuotas.de
+                      ? <span style={{ color:'#1d4ed8', marginLeft:6, fontWeight:500 }}>({cuotaEditModal.cambios.cuotas.a - cuotaEditModal.cambios.cuotas.de} cuotas nuevas al final)</span>
+                      : <span style={{ color:'#dc2626', marginLeft:6, fontWeight:500 }}>(se eliminarán las {cuotaEditModal.cambios.cuotas.de - cuotaEditModal.cambios.cuotas.a} últimas)</span>}
+                  </div>
+                </div>
+              )}
+
+              {/* Fecha → elección */}
+              {cuotaEditModal.cambios.fecha && (
+                <div style={{ padding:'10px 14px', background:'#faf5ff', borderRadius:10, border:'1px solid #e9d5ff', fontSize:12 }}>
+                  <div style={{ fontWeight:700, color:'#6b21a8', marginBottom:8 }}>
+                    📅 Fecha: {cuotaEditModal.cambios.fecha.de} → {cuotaEditModal.cambios.fecha.a} — ¿aplicar a?
+                  </div>
+                  <div style={{ display:'flex', gap:8 }}>
+                    <button
+                      onClick={() => setCuotaEditModal(p => ({ ...p, cambios: { ...p.cambios, fecha: { ...p.cambios.fecha, choice:'desplazar' } } }))}
+                      style={{ flex:1, padding:'8px', borderRadius:8, border:`2px solid ${cuotaEditModal.cambios.fecha.choice==='desplazar'?'#7c3aed':'var(--border)'}`, background:cuotaEditModal.cambios.fecha.choice==='desplazar'?'#f3e8ff':'var(--surface)', fontSize:11, fontWeight:700, cursor:'pointer', color:'#6b21a8' }}>
+                      Desplazar todas ({cuotaEditModal.cambios.fecha.diffMeses > 0 ? '+' : ''}{cuotaEditModal.cambios.fecha.diffMeses} mes{Math.abs(cuotaEditModal.cambios.fecha.diffMeses)!==1?'es':''})
+                    </button>
+                    <button
+                      onClick={() => setCuotaEditModal(p => ({ ...p, cambios: { ...p.cambios, fecha: { ...p.cambios.fecha, choice:'solo_esta' } } }))}
+                      style={{ flex:1, padding:'8px', borderRadius:8, border:`2px solid ${cuotaEditModal.cambios.fecha.choice==='solo_esta'?'#7c3aed':'var(--border)'}`, background:cuotaEditModal.cambios.fecha.choice==='solo_esta'?'#f3e8ff':'var(--surface)', fontSize:11, fontWeight:700, cursor:'pointer', color:'#6b21a8' }}>
+                      Solo esta cuota
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Observaciones → siempre individual */}
+              {cuotaEditModal.cambios.observaciones && (
+                <div style={{ padding:'10px 14px', background:'var(--surface2)', borderRadius:10, border:'1px solid var(--border)', fontSize:12 }}>
+                  <div style={{ fontWeight:700, color:'var(--text-secondary)' }}>📝 Observaciones — solo esta cuota</div>
+                </div>
+              )}
+            </div>
+
+            {/* Botones */}
+            <div style={{ display:'flex', gap:10, justifyContent:'flex-end' }}>
+              <button onClick={() => setCuotaEditModal(null)}
+                style={{ padding:'10px 20px', borderRadius:10, border:'1.5px solid var(--border)', background:'var(--surface)', fontSize:13, fontWeight:600, color:'var(--text-secondary)', cursor:'pointer' }}>
+                Cancelar
+              </button>
+              <button onClick={confirmarEdicionCuota} disabled={saving}
+                style={{ padding:'10px 24px', borderRadius:10, border:'none', background:'linear-gradient(135deg,#3b82f6,#2563eb)', color:'#fff', fontSize:13, fontWeight:800, cursor:saving?'not-allowed':'pointer', display:'flex', alignItems:'center', gap:8, opacity:saving?0.7:1 }}>
+                {saving ? 'Guardando…' : 'Confirmar cambios'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

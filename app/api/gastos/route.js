@@ -87,23 +87,102 @@ export async function PUT(request) {
   const body = await request.json()
   const { id, compra_id, _cuotas_config, ...fields } = body
 
-  // ── Actualización masiva por compra_id (revisión de cuotas) ──────────────
+  // ── Operaciones especiales por compra_id ─────────────────────────────────
   if (compra_id && !id) {
-    const { n4, n1, n2, n3, unidad, pendiente_revision } = fields
+
+    // Recalcular monto de TODAS las cuotas
+    if (fields.recalcular_monto !== undefined) {
+      const nuevoMonto = parseFloat(fields.recalcular_monto)
+      const { error } = await supabase
+        .from('gastos').update({ monto: nuevoMonto })
+        .eq('compra_id', compra_id).eq('user_id', user.id)
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+      return NextResponse.json({ ok: true, updated: 'all_monto' })
+    }
+
+    // Agregar cuotas nuevas al final
+    if (fields.agregar_cuotas) {
+      const nAgregar = parseInt(fields.agregar_cuotas)
+      const cuotasTotalNueva = parseInt(fields.cuotas_total_nueva)
+      const { data: existentes } = await supabase
+        .from('gastos').select('*').eq('compra_id', compra_id).eq('user_id', user.id)
+        .order('cuota_numero', { ascending: false })
+      if (!existentes?.length) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+      const ultima   = existentes[0]
+      const baseName = (ultima.n4 || '').replace(/\s*\(\d+\/\d+\)$/, '').trim()
+
+      // Actualizar cuotas_total en registros existentes + n4
+      await Promise.all(existentes.map(c => {
+        const newN4 = baseName ? `${baseName} (${c.cuota_numero}/${cuotasTotalNueva})` : c.n4
+        return supabase.from('gastos').update({ cuotas_total: cuotasTotalNueva, n4: newN4 })
+          .eq('id', c.id).eq('user_id', user.id)
+      }))
+
+      // Insertar los nuevos registros
+      const { id: _ul, created_at: _ca, ...base } = ultima
+      const nuevas = Array.from({ length: nAgregar }, (_, i) => {
+        const d = new Date(ultima.fecha + 'T12:00:00')
+        d.setMonth(d.getMonth() + i + 1)
+        const numCuota = ultima.cuota_numero + i + 1
+        return { ...base, fecha: d.toISOString().split('T')[0], cuota_numero: numCuota, cuotas_total: cuotasTotalNueva,
+          n4: baseName ? `${baseName} (${numCuota}/${cuotasTotalNueva})` : ultima.n4, observaciones: ultima.observaciones || '' }
+      })
+      const { error } = await supabase.from('gastos').insert(nuevas)
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+      return NextResponse.json({ ok: true, added: nAgregar })
+    }
+
+    // Reducir número de cuotas (eliminar las sobrantes + actualizar cuotas_total y n4)
+    if (fields.reducir_cuotas_a !== undefined) {
+      const nuevasTotal = parseInt(fields.reducir_cuotas_a)
+      await supabase.from('gastos').delete()
+        .eq('compra_id', compra_id).eq('user_id', user.id).gte('cuota_numero', nuevasTotal + 1)
+      const { data: restantes } = await supabase
+        .from('gastos').select('id, cuota_numero, n4').eq('compra_id', compra_id).eq('user_id', user.id)
+      if (restantes?.length) {
+        const baseName = (restantes[0]?.n4 || '').replace(/\s*\(\d+\/\d+\)$/, '').trim()
+        await Promise.all(restantes.map(c =>
+          supabase.from('gastos').update({ cuotas_total: nuevasTotal,
+            n4: baseName ? `${baseName} (${c.cuota_numero}/${nuevasTotal})` : c.n4 })
+            .eq('id', c.id).eq('user_id', user.id)
+        ))
+      }
+      return NextResponse.json({ ok: true, reduced_to: nuevasTotal })
+    }
+
+    // Desplazar fechas de cuotas desde cuota_numero X en adelante
+    if (fields.shift_fecha_desde_cuota !== undefined && fields.diff_meses !== undefined) {
+      const desdeCuota = parseInt(fields.shift_fecha_desde_cuota)
+      const diffMeses  = parseInt(fields.diff_meses)
+      const { data: cuotas } = await supabase
+        .from('gastos').select('id, fecha, cuota_numero').eq('compra_id', compra_id).eq('user_id', user.id)
+        .gte('cuota_numero', desdeCuota)
+      if (cuotas?.length) {
+        await Promise.all(cuotas.map(c => {
+          const d = new Date(c.fecha + 'T12:00:00')
+          d.setMonth(d.getMonth() + diffMeses)
+          return supabase.from('gastos').update({ fecha: d.toISOString().split('T')[0] })
+            .eq('id', c.id).eq('user_id', user.id)
+        }))
+      }
+      return NextResponse.json({ ok: true, shifted: cuotas?.length ?? 0 })
+    }
+
+    // Propagación de metadata (categoría, nombre, medio de pago) a TODAS las cuotas
+    const { n4, n1, n2, n3, unidad, pendiente_revision, medio_pago } = fields
     const { data: cuotas, error: fetchErr } = await supabase
-      .from('gastos')
-      .select('id, cuota_numero, cuotas_total')
-      .eq('compra_id', compra_id)
-      .eq('user_id', user.id)
+      .from('gastos').select('id, cuota_numero, cuotas_total')
+      .eq('compra_id', compra_id).eq('user_id', user.id)
     if (fetchErr || !cuotas?.length) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-    const total     = cuotas[0].cuotas_total
-    const baseName  = (n4 || '').replace(/\s*\(\d+\/\d+\)$/, '').trim()
-    const common    = { n1: n1||'', n2: n2||'', n3: n3||'', unidad: unidad||'unidad', pendiente_revision: pendiente_revision ?? false }
+    const total    = cuotas[0].cuotas_total
+    const baseName = (n4 || '').replace(/\s*\(\d+\/\d+\)$/, '').trim()
+    const common   = { n1: n1||'', n2: n2||'', n3: n3||'', unidad: unidad||'unidad', pendiente_revision: pendiente_revision ?? false,
+      ...(medio_pago ? { medio_pago } : {}) }
 
     await Promise.all(cuotas.map(c =>
-      supabase.from('gastos').update({
-        ...common,
+      supabase.from('gastos').update({ ...common,
         n4: baseName ? `${baseName} (${c.cuota_numero}/${total})` : c.n4,
       }).eq('id', c.id).eq('user_id', user.id)
     ))

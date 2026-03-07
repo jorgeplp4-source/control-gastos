@@ -103,6 +103,57 @@ export default function Home() {
   }, [])
 
   const handleSave = async (form) => {
+    // ── Edición inteligente de compra en cuotas ──────────────────────────────
+    if (form._cuota_edit) {
+      const edit = form._cuota_edit
+      const { compra_id, cuota_numero } = edit
+      const n4Base = (form.n4 || '').replace(/\s*\(\d+\/\d+\)$/, '').trim()
+      const H = (body) => fetch('/api/gastos', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      const tasks = []
+
+      // 1. Propagar metadata (categoría, nombre, medio de pago) a TODAS las cuotas
+      if (edit.propagar_meta) {
+        tasks.push(H({ compra_id, n1: form.n1||'', n2: form.n2||'', n3: form.n3||'', n4: n4Base,
+          unidad: form.unidad||'unidad', medio_pago: form.medio_pago, pendiente_revision: false }))
+      }
+
+      // 2. Monto
+      if (edit.monto_accion === 'solo_esta') {
+        tasks.push(H({ id: form.id, monto: edit.monto_nuevo }))
+      } else if (edit.monto_accion === 'recalcular') {
+        tasks.push(H({ compra_id, recalcular_monto: edit.monto_nuevo }))
+      }
+
+      // 3. Cuotas total
+      if (edit.cuotas_de !== undefined && edit.cuotas_a !== edit.cuotas_de) {
+        if (edit.cuotas_a > edit.cuotas_de) {
+          tasks.push(H({ compra_id, agregar_cuotas: edit.cuotas_a - edit.cuotas_de, cuotas_total_nueva: edit.cuotas_a }))
+        } else {
+          tasks.push(H({ compra_id, reducir_cuotas_a: edit.cuotas_a }))
+        }
+      }
+
+      // 4. Fecha
+      if (edit.fecha_accion === 'solo_esta') {
+        tasks.push(H({ id: form.id, fecha: edit.fecha_nueva }))
+      } else if (edit.fecha_accion === 'desplazar') {
+        tasks.push(H({ compra_id, shift_fecha_desde_cuota: cuota_numero, diff_meses: edit.diff_meses }))
+      }
+
+      // 5. Observaciones (solo esta cuota)
+      if (edit.observaciones_individual !== undefined) {
+        tasks.push(H({ id: form.id, observaciones: edit.observaciones_individual }))
+      }
+
+      await Promise.all(tasks)
+      const all = await fetch('/api/gastos').then(r => r.json())
+      setGastos(Array.isArray(all) ? all : [])
+      setEditTarget(null)
+      setTab('listado')
+      showToast('Compra actualizada ✓', false)
+      return
+    }
+
     const isEdit = !!form.id
     const { _recurrente, _cuotas_config, ...gastoData } = form
     const body = _cuotas_config ? { ...gastoData, _cuotas_config } : gastoData
