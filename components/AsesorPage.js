@@ -288,7 +288,7 @@ function Chat({ gastos, ingresos }) {
 
 // ── Página principal ──────────────────────────────────────────────────────────
 export default function AsesorPage({ gastos = [] }) {
-  const { fmtMoney } = useApp()
+  const { fmtMoney, t } = useApp()
   const { ingresos } = useIngresos()
   const [seccion, setSeccion] = useState('sugerencias')
 
@@ -302,9 +302,9 @@ export default function AsesorPage({ gastos = [] }) {
   if (!gastos.length) return (
     <div style={{ maxWidth:700, margin:'0 auto', textAlign:'center', padding:'60px 20px' }}>
       <div style={{ fontSize:48, marginBottom:16 }}>🤖</div>
-      <h2 style={{ fontSize:20, fontWeight:800, color:'var(--text-primary)', margin:'0 0 8px' }}>Asesor Virtual</h2>
+      <h2 style={{ fontSize:20, fontWeight:800, color:'var(--text-primary)', margin:'0 0 8px' }}>{t('asesor.title')}</h2>
       <p style={{ color:'var(--text-muted)', fontSize:14 }}>
-        Registrá algunos gastos para que el asesor pueda analizar tus patrones y darte sugerencias personalizadas.
+        {t('asesor.sinDatos')}
       </p>
     </div>
   )
@@ -313,7 +313,7 @@ export default function AsesorPage({ gastos = [] }) {
     <div style={{ maxWidth:780, margin:'0 auto', paddingBottom:40 }}>
       <div style={{ marginBottom:20 }}>
         <h2 style={{ margin:'0 0 4px', fontSize:20, fontWeight:800, color:'var(--text-primary)', display:'flex', alignItems:'center', gap:8 }}>
-          🤖 Asesor Virtual
+          🤖 {t('asesor.title')}
         </h2>
         <p style={{ margin:0, fontSize:13, color:'var(--text-muted)' }}>
           Análisis automático de tus finanzas · {gastos.length} gastos registrados

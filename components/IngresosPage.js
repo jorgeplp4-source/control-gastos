@@ -27,6 +27,7 @@ function Badge({ text, color }) {
 
 // ── Formulario de ingreso ─────────────────────────────────────────────────────
 function IngresoForm({ initial, onSave, onCancel }) {
+  const { t } = useApp()
   const blank = { fuente:'Sueldo', monto:'', fecha:today(), tipo:'fijo', periodo:'mensual', notas:'' }
   const [form, setForm] = useState(initial ? { ...initial, monto: String(initial.monto) } : blank)
   const [saving, setSaving] = useState(false)
@@ -53,13 +54,13 @@ function IngresoForm({ initial, onSave, onCancel }) {
     <div style={{ background:'var(--surface)', border:'1.5px solid var(--accent)', borderRadius:16,
       padding:22, marginBottom:20, boxShadow:'0 4px 20px rgba(99,102,241,.12)' }}>
       <h3 style={{ margin:'0 0 18px', fontSize:15, fontWeight:800, color:'var(--text-primary)' }}>
-        {initial ? '✏️ Editar ingreso' : '➕ Nuevo ingreso'}
+        {initial ? `✏️ ${t('ingresos.title')}` : `➕ ${t('ingresos.nuevo')}`}
       </h3>
 
       <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
         {/* Fuente */}
         <div style={{ gridColumn:'1/-1' }}>
-          <label style={lbl}>Fuente de ingreso</label>
+          <label style={lbl}>{t('ingresos.fuente')}</label>
           <input list="fuentes-list" value={form.fuente} onChange={e=>set('fuente',e.target.value)}
             placeholder="Ej: Sueldo, Freelance…" style={inp}/>
           <datalist id="fuentes-list">
@@ -69,14 +70,14 @@ function IngresoForm({ initial, onSave, onCancel }) {
 
         {/* Monto */}
         <div>
-          <label style={lbl}>Monto ($)</label>
+          <label style={lbl}>{t('ingresos.monto')} ($)</label>
           <input type="number" min="0" step="1" value={form.monto}
             onChange={e=>set('monto',e.target.value)} placeholder="0" style={inp}/>
         </div>
 
         {/* Fecha */}
         <div>
-          <label style={lbl}>Fecha</label>
+          <label style={lbl}>{t('ingresos.fecha')}</label>
           <input type="date" value={form.fecha} onChange={e=>set('fecha',e.target.value)} style={inp}/>
         </div>
 
@@ -109,14 +110,14 @@ function IngresoForm({ initial, onSave, onCancel }) {
           style={{ padding:'9px 20px', borderRadius:9, border:'1.5px solid var(--border)',
             background:'var(--surface)', fontSize:13, fontWeight:600, color:'var(--text-secondary)', cursor:'pointer',
             display:'flex', alignItems:'center', gap:5 }}>
-          <IconCerrar size={14}/> Cancelar
+          <IconCerrar size={14}/> {t('ingresos.cancelar')}
         </button>
         <button onClick={handleSave} disabled={!valid||saving}
           style={{ padding:'9px 22px', borderRadius:9, border:'none', cursor:valid&&!saving?'pointer':'not-allowed',
             background:valid?'linear-gradient(135deg,#1e40af,#3b82f6)':'var(--border)',
             color:valid?'#fff':'var(--text-muted)', fontSize:13, fontWeight:800,
             display:'flex', alignItems:'center', gap:6 }}>
-          <IconGuardar size={14}/> {saving ? 'Guardando…' : initial ? 'Guardar cambios' : 'Agregar ingreso'}
+          <IconGuardar size={14}/> {saving ? '…' : t('ingresos.guardar')}
         </button>
       </div>
     </div>
@@ -125,7 +126,7 @@ function IngresoForm({ initial, onSave, onCancel }) {
 
 // ── Página principal ──────────────────────────────────────────────────────────
 export default function IngresosPage() {
-  const { fmtMoney } = useApp()
+  const { fmtMoney, t } = useApp()
   const money = v => fmtMoney ? fmtMoney(v) : fmt(v)
   const { ingresos, refetch } = useIngresos()
   const [showForm,   setShowForm]   = useState(false)
@@ -171,7 +172,7 @@ export default function IngresosPage() {
   }
 
   const handleDelete = async (id) => {
-    if (!confirm('¿Eliminar este ingreso?')) return
+    if (!confirm(t('ingresos.eliminar'))) return
     await fetch(`/api/ingresos?id=${id}`, { method:'DELETE' })
     await refetch()
   }
@@ -204,7 +205,7 @@ export default function IngresosPage() {
         <div>
           <h2 style={{ margin:0, fontSize:20, fontWeight:800, color:'var(--text-primary)',
             display:'flex', alignItems:'center', gap:8 }}>
-            <IconDinero size={22} weight="duotone" color="#1e40af"/> Ingresos
+            <IconDinero size={22} weight="duotone" color="#1e40af"/> {t('ingresos.title')}
           </h2>
           <p style={{ margin:'4px 0 0', fontSize:13, color:'var(--text-muted)' }}>
             Registrá tus fuentes de ingreso para calcular métricas de ahorro
@@ -224,7 +225,7 @@ export default function IngresosPage() {
                 background:'linear-gradient(135deg,#1e40af,#3b82f6)', color:'#fff',
                 fontSize:13, fontWeight:800, display:'flex', alignItems:'center', gap:6,
                 boxShadow:'0 3px 12px #1e40af44' }}>
-              <IconExito size={15}/> Agregar ingreso
+              <IconExito size={15}/> {t('ingresos.nuevo')}
             </button>
           )}
         </div>
@@ -288,7 +289,7 @@ export default function IngresosPage() {
       {filtered.length === 0 ? (
         <div style={{ textAlign:'center', padding:'48px 20px', color:'var(--text-muted)' }}>
           <div style={{ fontSize:32, marginBottom:8 }}>💰</div>
-          <div style={{ fontSize:14, fontWeight:600 }}>Sin ingresos registrados este mes</div>
+          <div style={{ fontSize:14, fontWeight:600 }}>{t('ingresos.sinIngresos')}</div>
           <div style={{ fontSize:12, marginTop:4 }}>Agregá tu primer ingreso para ver métricas de ahorro</div>
         </div>
       ) : (

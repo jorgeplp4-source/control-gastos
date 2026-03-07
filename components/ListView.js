@@ -13,16 +13,16 @@ import {
 
 // ── Columnas ─────────────────────────────────────────────────────────────────
 const ALL_COLS = [
-  { id:'monto',    label:'Monto',     field:'monto',      sortable:true  },
-  { id:'pago',     label:'Pago',      field:'medio_pago', sortable:true  },
-  { id:'n4',       label:'Ítem',      field:'n4',         sortable:true  },
-  { id:'cantidad', label:'Cantidad',  field:null,         sortable:false },
-  { id:'n1',       label:'Tipo',      field:'n1',         sortable:true  },
-  { id:'n2',       label:'Área',      field:'n2',         sortable:true  },
-  { id:'n3',       label:'Subcateg.', field:'n3',         sortable:true  },
-  { id:'fecha',    label:'Fecha',     field:'fecha',      sortable:true  },
-  { id:'nota',     label:'Nota',      field:null,         sortable:false },
-  { id:'acciones', label:'',          field:null,         sortable:false },
+  { id:'monto',    label:'Monto',     labelKey:'listado.monto',       field:'monto',      sortable:true  },
+  { id:'pago',     label:'Pago',      labelKey:'listado.pago',        field:'medio_pago', sortable:true  },
+  { id:'n4',       label:'Ítem',      labelKey:'listado.item',        field:'n4',         sortable:true  },
+  { id:'cantidad', label:'Cantidad',  labelKey:'listado.cantidad',    field:null,         sortable:false },
+  { id:'n1',       label:'Tipo',      labelKey:'listado.tipo',        field:'n1',         sortable:true  },
+  { id:'n2',       label:'Área',      labelKey:'listado.area',        field:'n2',         sortable:true  },
+  { id:'n3',       label:'Subcateg.', labelKey:'listado.subcategoria',field:'n3',         sortable:true  },
+  { id:'fecha',    label:'Fecha',     labelKey:'listado.fecha',       field:'fecha',      sortable:true  },
+  { id:'nota',     label:'Nota',      labelKey:'listado.nota',        field:null,         sortable:false },
+  { id:'acciones', label:'',          labelKey:'',                    field:null,         sortable:false },
 ]
 const DEFAULT_ORDER = ['monto','pago','n4','cantidad','n1','n2','n3','fecha','nota','acciones']
 
@@ -306,7 +306,7 @@ function DrillDown({ gastos, activeN1, activeN2, activeN3, onFilter }) {
 }
 
 // ── Column header (draggable) ─────────────────────────────────────────────────
-function ColHeader({ col, sortField, sortDir, onSort, isDragOver, onDragStart, onDragOver, onDrop }) {
+function ColHeader({ col, sortField, sortDir, onSort, isDragOver, onDragStart, onDragOver, onDrop, t }) {
   return (
     <th
       draggable={col.id !== 'acciones'}
@@ -326,7 +326,7 @@ function ColHeader({ col, sortField, sortDir, onSort, isDragOver, onDragStart, o
       }}>
       <span style={{ display:'flex', alignItems:'center', gap:3 }}>
         {col.id !== 'acciones' && <span style={{ opacity:0.2, fontSize:9 }}>⠿</span>}
-        {col.label}
+        {col.labelKey ? t(col.labelKey) : col.label}
         {col.sortable && (
           sortField === col.field
             ? (sortDir === 'asc' ? <IconArriba size={9} weight="bold" /> : <IconAbajo size={9} weight="bold" />)
@@ -669,7 +669,7 @@ function PendientesPanel({ gastos, onConfirm }) {
 
 
 export default function ListView({ gastos, onDelete, onEdit, onRefresh }) {
-  const { fmtMoney, saveSettings, settings } = useApp()
+  const { fmtMoney, saveSettings, settings, t } = useApp()
   const recurrentes = useRecurrentes()
 
   // Sidebar toggle (persiste en sessionStorage)
@@ -1006,13 +1006,13 @@ export default function ListView({ gastos, onDelete, onEdit, onRefresh }) {
           <div style={{ display:'flex', gap:8, alignItems:'center' }}>
             <div style={{ position:'relative', flex:1 }}>
               <IconBuscar size={13} style={{ position:'absolute', left:9, top:'50%', transform:'translateY(-50%)', color:'var(--text-muted)', pointerEvents:'none' }} aria-hidden="true" />
-              <input placeholder="Buscar categoría, ítem o nota…" value={search} onChange={e => setSearch(e.target.value)}
+              <input placeholder={t('listado.buscar')} value={search} onChange={e => setSearch(e.target.value)}
                 style={{ ...S.inp, width:'100%', paddingLeft:28, boxSizing:'border-box' }} />
             </div>
             {hayFiltros && (
               <button onClick={() => { handleFilter({ n1:'', n2:'', n3:'' }); setSearch(''); handlePeriodo('mes') }}
                 style={{ padding:'6px 11px', borderRadius:8, border:'1.5px solid #ef4444', background:'transparent', color:'#ef4444', fontWeight:700, fontSize:12, cursor:'pointer', display:'flex', alignItems:'center', gap:3, flexShrink:0 }}>
-                <IconCerrar size={10} aria-hidden="true" /> Limpiar
+                <IconCerrar size={10} aria-hidden="true" /> {t('common.limpiar')}
               </button>
             )}
           </div>
@@ -1077,7 +1077,7 @@ export default function ListView({ gastos, onDelete, onEdit, onRefresh }) {
                           style={{ width:16, height:16, borderRadius:4, border:`2px solid ${visible ? 'var(--accent)' : 'var(--border)'}`, background: visible ? 'var(--accent)' : 'transparent', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, cursor:'pointer', transition:'all .12s' }}>
                           {visible && <IconCheck size={10} color="#fff" aria-hidden="true" />}
                         </div>
-                        <span style={{ fontSize:12, color: visible ? 'var(--text-primary)' : 'var(--text-muted)', fontWeight: visible ? 600 : 400 }}>{col.label}</span>
+                        <span style={{ fontSize:12, color: visible ? 'var(--text-primary)' : 'var(--text-muted)', fontWeight: visible ? 600 : 400 }}>{col.labelKey ? t(col.labelKey) : col.label}</span>
                       </label>
                     )
                   })}
@@ -1104,6 +1104,7 @@ export default function ListView({ gastos, onDelete, onEdit, onRefresh }) {
                       sortField={sortField} sortDir={sortDir} onSort={handleSort}
                       isDragOver={dragOver === col.id && dragFrom !== col.id}
                       onDragStart={setDragFrom} onDragOver={setDragOver} onDrop={handleDrop}
+                      t={t}
                     />
                   ))}
                 </tr>
@@ -1181,7 +1182,7 @@ export default function ListView({ gastos, onDelete, onEdit, onRefresh }) {
             {!filtered.length && (
               <div style={{ textAlign:'center', padding:'36px 20px', color:'var(--text-muted)' }}>
                 <IconBuscar size={28} weight="duotone" style={{ marginBottom:6 }} aria-hidden="true" />
-                <p style={{ fontWeight:600, margin:0 }}>Sin resultados</p>
+                <p style={{ fontWeight:600, margin:0 }}>{t('listado.sinGastos')}</p>
                 <p style={{ fontSize:12, marginTop:4 }}>Probá cambiando el período o los filtros</p>
               </div>
             )}

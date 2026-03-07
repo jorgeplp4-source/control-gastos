@@ -127,7 +127,7 @@ export default function ExpenseForm({ initial, onSave, onCancel }) {
   const { units }      = useUnits()
   const { items } = useItems()
   const { categories } = useCategories()
-  const { settings }   = useApp()
+  const { settings, t } = useApp()
   const diaCierre      = settings?.dia_cierre_tarjeta ?? null
 
   const blank = { n1:'', n2:'', n3:'', n4:'', cantidad:'', unidad:'unidad', monto:'', fecha:today, observaciones:'' }
@@ -379,8 +379,8 @@ export default function ExpenseForm({ initial, onSave, onCancel }) {
           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:24 }}>
             <h2 style={{ margin:0, fontSize:18, fontWeight:800, color:'var(--text-primary)', display:'flex', alignItems:'center', gap:8 }}>
               {initial
-                ? <><IconEditar size={20} weight="duotone" color={activeColor}/> Editar Gasto</>
-                : <><IconRegistrar size={20} weight="duotone" color={activeColor}/> Nuevo Gasto</>}
+                ? <><IconEditar size={20} weight="duotone" color={activeColor}/> {t('registro.editar')}</>
+                : <><IconRegistrar size={20} weight="duotone" color={activeColor}/> {t('registro.title')}</>}
             </h2>
             {initial && <button onClick={onCancel} style={{ border:'none', background:'none', color:'var(--text-muted)', cursor:'pointer', display:'flex', padding:4 }}><IconCerrar size={22}/></button>}
           </div>
@@ -445,31 +445,31 @@ export default function ExpenseForm({ initial, onSave, onCancel }) {
 
           {/* Campos */}
           <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(148px,1fr))', gap:16 }}>
-            <div><label style={lbl}>Cantidad</label>
+            <div><label style={lbl}>{t('registro.cantidad')}</label>
               <input type="number" min="0" step="0.01" value={form.cantidad} onChange={e=>set('cantidad',e.target.value)} placeholder="0" style={inp}/>
             </div>
-            <div><label style={lbl}>Unidad</label>
+            <div><label style={lbl}>{t('registro.unidad')}</label>
               <select value={form.unidad} onChange={e=>set('unidad',e.target.value)} style={sel}>
                 {units.map(u=><option key={u}>{u}</option>)}
               </select>
             </div>
-            <div><label style={lbl}>Monto ($)</label>
+            <div><label style={lbl}>{t('registro.monto')} ($)</label>
               <input type="number" min="0" step="1" value={form.monto} onChange={e=>set('monto',e.target.value)} placeholder="0" style={inp}/>
             </div>
-            <div><label style={lbl}>Fecha</label>
+            <div><label style={lbl}>{t('registro.fecha')}</label>
               <input type="date" value={form.fecha} onChange={e=>set('fecha',e.target.value)} style={inp}/>
             </div>
           </div>
 
           <div style={{ marginTop:16 }}>
-            <label style={lbl}>Observaciones</label>
+            <label style={lbl}>{t('registro.nota')}</label>
             <textarea value={form.observaciones} onChange={e=>set('observaciones',e.target.value)} placeholder="Notas adicionales…" rows={2} style={{ ...inp, resize:'vertical' }}/>
           </div>
 
           {/* ── Medio de pago + Cuotas ── */}
           <div style={{ marginTop:18, borderRadius:14, border:'1.5px solid var(--border)', overflow:'hidden' }}>
             <div style={{ padding:'12px 18px', background:'var(--surface2)', borderBottom:'1px solid var(--border)' }}>
-              <span style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'.06em' }}>Medio de pago</span>
+              <span style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'.06em' }}>{t('registro.medioPago')}</span>
             </div>
             <div style={{ padding:'14px 18px' }}>
               {/* Selector medio de pago */}
@@ -528,7 +528,7 @@ export default function ExpenseForm({ initial, onSave, onCancel }) {
               {/* Cuotas — solo si es crédito */}
               {medioPago === 'credito' && (
                 <div>
-                  <label style={{ ...lbl, marginBottom:8 }}>Cuotas</label>
+                  <label style={{ ...lbl, marginBottom:8 }}>{t('registro.cuotas')}</label>
                   <div style={{ display:'flex', gap:6, flexWrap:'wrap', alignItems:'center' }}>
                     {CUOTAS_OPCIONES.map(n => (
                       <button key={n} onClick={() => setCuotas(n)}
@@ -586,7 +586,7 @@ export default function ExpenseForm({ initial, onSave, onCancel }) {
                 <div>
                   <div style={{ fontWeight:700, fontSize:14, color:'var(--text-primary)', display:'flex', alignItems:'center', gap:6 }}>
                     <IconRecurrentes size={16} weight={hacerRec?'fill':'regular'} color={hacerRec?activeColor:'var(--text-muted)'}/>
-                    Hacer recurrente
+                    {t('registro.recurrente')}
                   </div>
                   <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:1 }}>
                     {hacerRec?'Se guardará como gasto automático periódico':'Activá para repetición automática'}
@@ -596,7 +596,7 @@ export default function ExpenseForm({ initial, onSave, onCancel }) {
               {hacerRec && (
                 <div style={{ padding:'16px 18px', borderTop:`1px solid ${activeColor}30`, background:'var(--surface)' }}>
                   <div style={{ marginBottom:14 }}>
-                    <label style={lbl}>Frecuencia</label>
+                    <label style={lbl}>{t('registro.frecuencia')}</label>
                     <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
                       {FRECUENCIAS.map(({ val, label, Icon:Ic }) => (
                         <button key={val} onClick={()=>setRec('frecuencia',val)} aria-pressed={recForm.frecuencia===val}
@@ -630,17 +630,17 @@ export default function ExpenseForm({ initial, onSave, onCancel }) {
           <div style={{ marginTop:24, display:'flex', gap:10, justifyContent:'flex-end' }}>
             {initial && (
               <button onClick={onCancel} style={{ padding:'11px 24px', borderRadius:10, border:'1.5px solid var(--border)', background:'var(--surface)', fontSize:14, fontWeight:600, color:'var(--text-secondary)', cursor:'pointer', display:'flex', alignItems:'center', gap:6 }}>
-                <IconCerrar size={15}/> Cancelar
+                <IconCerrar size={15}/> {t('registro.cancelar')}
               </button>
             )}
             <button onClick={handleSubmit} disabled={!valid||saving} aria-disabled={!valid||saving}
               style={{ padding:'11px 32px', borderRadius:10, border:'none', cursor:valid&&!saving?'pointer':'not-allowed', background:valid?`linear-gradient(135deg,${activeColor},${activeColor}bb)`:'var(--border)', color:valid?'#fff':'var(--text-muted)', fontSize:14, fontWeight:800, boxShadow:valid?`0 4px 14px ${activeColor}44`:'none', display:'flex', alignItems:'center', gap:8 }}>
               {saving
-                ? <><IconRecurrentes size={15} style={{ animation:'spin 1s linear infinite' }}/> Guardando…</>
-                : initial ? <><IconGuardar size={15}/> Guardar Cambios</>
-                : cuotas > 1 ? <><IconExito size={15}/> Registrar {cuotas} cuotas</>
-                : hacerRec ? <><IconExito size={15}/> Registrar + Recurrencia</>
-                : <><IconExito size={15}/> Registrar Gasto</>}
+                ? <><IconRecurrentes size={15} style={{ animation:'spin 1s linear infinite' }}/> {t('registro.guardando')}</>
+                : initial ? <><IconGuardar size={15}/> {t('registro.editar')}</>
+                : cuotas > 1 ? <><IconExito size={15}/> {t('registro.guardar')} ({cuotas})</>
+                : hacerRec ? <><IconExito size={15}/> {t('registro.guardar')} + ↺</>
+                : <><IconExito size={15}/> {t('registro.guardar')}</>}
             </button>
           </div>
         </div>

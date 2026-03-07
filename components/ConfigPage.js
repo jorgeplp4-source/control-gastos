@@ -25,9 +25,9 @@ const CURRENCIES = [
 ]
 
 const THEMES = [
-  { val:'light', label:'Claro',   Icon:IconClaro   },
-  { val:'dark',  label:'Oscuro',  Icon:IconOscuro  },
-  { val:'system',label:'Sistema', Icon:IconSistema },
+  { val:'light', labelKey:'config.temaClaro',   Icon:IconClaro   },
+  { val:'dark',  labelKey:'config.temaOscuro',  Icon:IconOscuro  },
+  { val:'system',labelKey:'config.temaSistema', Icon:IconSistema },
 ]
 
 const SECCIONES = [
@@ -45,7 +45,7 @@ const SECCIONES = [
 
 export default function ConfigPage() {
   const supabase = createClient()
-  const { settings, saveSettings, loadingSettings, dashboardWidgets, saveDashboardWidgets } = useApp()
+  const { settings, saveSettings, loadingSettings, dashboardWidgets, saveDashboardWidgets, t } = useApp()
   const settingsInitRef = useRef(false)   // se inicializa local UNA sola vez al cargar desde DB
   const [seccion,       setSeccion]       = useState('apariencia')
   const [local,         setLocal]         = useState({ theme:'system', currency:'ARS', language:'es', dia_cierre_tarjeta: null })
@@ -126,14 +126,14 @@ export default function ConfigPage() {
   const renderSection = () => {
     switch(seccion) {
       case 'apariencia': return (
-        <Section title="Apariencia" Icon={IconTema}>
-          <label style={LBL}>Tema de la interfaz</label>
+        <Section title={t('config.apariencia')} Icon={IconTema}>
+          <label style={LBL}>{t('config.tema')}</label>
           <div style={{ display:'flex', gap:10, flexWrap:'wrap' }}>
-            {THEMES.map(({ val, label, Icon:ThIcon }) => (
+            {THEMES.map(({ val, labelKey, Icon:ThIcon }) => (
               <button key={val} onClick={() => setL('theme', val)} aria-pressed={local.theme===val}
                 style={{ flex:1, minWidth:90, padding:'12px 10px', borderRadius:12, border:`2px solid ${local.theme===val?'var(--accent)':'var(--border)'}`, background:local.theme===val?'var(--accent-light)':'var(--surface2)', cursor:'pointer', display:'flex', flexDirection:'column', alignItems:'center', gap:6, transition:'all .15s' }}>
                 <ThIcon size={26} weight={local.theme===val?'fill':'regular'} color={local.theme===val?'var(--accent)':'var(--text-muted)'} aria-hidden="true" />
-                <span style={{ fontSize:12, fontWeight:700, color:local.theme===val?'var(--accent)':'var(--text-secondary)' }}>{label}</span>
+                <span style={{ fontSize:12, fontWeight:700, color:local.theme===val?'var(--accent)':'var(--text-secondary)' }}>{t(labelKey)}</span>
               </button>
             ))}
           </div>
@@ -141,9 +141,9 @@ export default function ConfigPage() {
       )
 
       case 'regional': return (
-        <Section title="Regional" Icon={IconGlobo}>
+        <Section title={t('config.regionalizacion')} Icon={IconGlobo}>
           <div>
-            <label style={LBL}>Moneda</label>
+            <label style={LBL}>{t('config.moneda')}</label>
             <select value={local.currency} onChange={e=>setL('currency',e.target.value)} style={inp} aria-label="Moneda">
               {CURRENCIES.map(c=><option key={c.code} value={c.code}>{c.symbol} — {c.name} ({c.code})</option>)}
             </select>
@@ -153,8 +153,8 @@ export default function ConfigPage() {
       )
 
       case 'idioma': return (
-        <Section title="Idioma" Icon={IconIdioma}>
-          <label style={LBL}>Idioma de la interfaz</label>
+        <Section title={t('config.idioma')} Icon={IconIdioma}>
+          <label style={LBL}>{t('config.idioma')}</label>
           <div style={{ display:'flex', gap:10 }}>
             {[{ val:'es', label:'Español', flag:'🇦🇷' }, { val:'en', label:'English', flag:'🇺🇸' }].map(opt => (
               <button key={opt.val} onClick={() => setL('language', opt.val)} aria-pressed={local.language===opt.val}
@@ -236,8 +236,8 @@ export default function ConfigPage() {
       )
 
       case 'dashboard': return (
-        <Section title="Widgets del Dashboard" Icon={IconDashboard}
-          subtitle="Elegí qué secciones mostrar. Para reordenar, arrastrá las tarjetas desde el dashboard.">
+        <Section title={t('config.dashboard')} Icon={IconDashboard}
+          subtitle={t('config.dashboardSubtitle')}>
           <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
             {dashboardWidgets.map((widget, i) => (
               <div key={widget.id} style={{
@@ -261,7 +261,7 @@ export default function ConfigPage() {
                 {/* Toggle visible / Siempre */}
                 {widget.alwaysOn ? (
                   <span style={{ fontSize:11, fontWeight:700, color:'#94a3b8', background:'#f1f5f9', padding:'5px 10px', borderRadius:20, border:'1px solid #e2e8f0', flexShrink:0, whiteSpace:'nowrap' }}>
-                    Siempre
+                    {t('config.siempre')}
                   </span>
                 ) : (
                   <button
@@ -276,7 +276,7 @@ export default function ConfigPage() {
                       color:      widget.visible ? '#fff'          : 'var(--text-muted)',
                       outline:    `1.5px solid ${widget.visible ? 'var(--accent)' : 'var(--border)'}`,
                     }}>
-                    {widget.visible ? '✓ Visible' : 'Oculto'}
+                    {widget.visible ? `✓ ${t('config.visible')}` : t('config.oculto')}
                   </button>
                 )}
 
@@ -318,7 +318,7 @@ export default function ConfigPage() {
       )
 
       case 'peligro': return (
-        <Section title="Zona de Peligro" Icon={IconPeligro}
+        <Section title={t('config.zonaDePeligro')} Icon={IconPeligro}
           subtitle="Acciones irreversibles sobre tus datos. Procedé con cuidado." noSave>
 
           {/* Éxito */}
@@ -444,13 +444,13 @@ export default function ConfigPage() {
           <div style={{ marginTop:22, display:'flex', alignItems:'center', gap:12, paddingTop:18, borderTop:'1px solid var(--border)' }}>
             {saved && (
               <span style={{ color:'#10b981', fontWeight:700, fontSize:13, display:'flex', alignItems:'center', gap:5 }}>
-                <IconExito size={15} weight="fill" aria-hidden="true" /> ¡Guardado!
+                <IconExito size={15} weight="fill" aria-hidden="true" /> {t('config.guardado')}
               </span>
             )}
             <button onClick={handleSave} disabled={saving}
               style={{ padding:'10px 24px', borderRadius:10, border:'none', background:'linear-gradient(135deg,var(--accent),var(--accent-dark))', color:'#fff', fontSize:13, fontWeight:800, cursor:saving?'wait':'pointer', display:'flex', alignItems:'center', gap:7, boxShadow:'0 4px 14px rgba(59,130,246,.3)' }}>
               <IconGuardar size={14} aria-hidden="true" />
-              {saving ? 'Guardando…' : 'Guardar cambios'}
+              {saving ? '…' : t('config.guardar')}
             </button>
           </div>
         )}
