@@ -1,6 +1,7 @@
 'use client'
-import { createContext, useContext, useEffect, useState, useCallback } from 'react'
+import { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react'
 import { createClient } from '../lib/supabase-browser'
+import { mergeWidgets, serializeWidgets } from '../lib/dashboardWidgets'
 
 // ─── DEFAULTS ─────────────────────────────────────────────────────────────────
 const DEFAULT_SETTINGS = {
@@ -11,6 +12,7 @@ const DEFAULT_SETTINGS = {
   date_format: 'DD/MM/YYYY',
   custom_categories: [],
   dia_cierre_tarjeta: null,
+  dashboard_widgets: [],
 }
 
 const CURRENCIES = [
@@ -174,6 +176,16 @@ export function AppProvider({ children }) {
     [settings.date_format]
   )
 
+  // ── Dashboard widgets ──
+  const dashboardWidgets = useMemo(
+    () => mergeWidgets(settings.dashboard_widgets || []),
+    [settings.dashboard_widgets]
+  )
+
+  const saveDashboardWidgets = useCallback(async (widgets) => {
+    await saveSettings({ dashboard_widgets: serializeWidgets(widgets) })
+  }, [saveSettings])
+
   const refreshNotifCount = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
@@ -190,6 +202,7 @@ export function AppProvider({ children }) {
       settings, saveSettings, loadingSettings,
       t, fmtMoney, fmtDate,
       notifCount, setNotifCount, refreshNotifCount,
+      dashboardWidgets, saveDashboardWidgets,
       CURRENCIES, DATE_FORMATS,
     }}>
       {children}

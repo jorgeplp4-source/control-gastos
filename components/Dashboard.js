@@ -182,7 +182,6 @@ function AlertaBanners({ alertas, onNavigate }) {
                 </div>
               </div>
             )}
-            {/* Botón cerrar */}
             <button onClick={() => cerrar(a.id)}
               title="Cerrar alerta"
               style={{ border:'none', background:'none', cursor:'pointer', color:'#94a3b8',
@@ -204,8 +203,49 @@ function AlertaBanners({ alertas, onNavigate }) {
   )
 }
 
+// ── Widget Shell — envuelve secciones con título + colapso ────────────────────
+function WidgetShell({ id, title, icon, collapsible = true, children }) {
+  const [collapsed, setCollapsed] = useState(() => {
+    try { return localStorage.getItem(`dash_w_${id}`) === '1' } catch { return false }
+  })
+
+  const toggle = () => setCollapsed(prev => {
+    const next = !prev
+    try { localStorage.setItem(`dash_w_${id}`, next ? '1' : '0') } catch {}
+    return next
+  })
+
+  return (
+    <div style={{ background:'var(--surface)', borderRadius:16, border:'1px solid var(--border)', boxShadow:'0 2px 12px rgba(0,0,0,.06)' }}>
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'14px 20px',
+        borderBottom: collapsed ? 'none' : '1px solid var(--border)', minHeight:48 }}>
+        <h3 style={{ margin:0, fontSize:13, fontWeight:800, color:'var(--text-secondary)', textTransform:'uppercase', letterSpacing:'0.07em', display:'flex', alignItems:'center', gap:6 }}>
+          {icon}
+          {title}
+        </h3>
+        {collapsible && (
+          <button onClick={toggle} title={collapsed ? 'Expandir' : 'Minimizar'} aria-expanded={!collapsed}
+            style={{ border:'none', background:'none', cursor:'pointer', color:'var(--text-muted)',
+              padding:'4px 6px', borderRadius:6, display:'flex', alignItems:'center', lineHeight:1, transition:'color .15s' }}
+            onMouseEnter={e => e.currentTarget.style.color = 'var(--text-primary)'}
+            onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}>
+            <IconCaretDown size={14} aria-hidden="true"
+              style={{ transform: collapsed ? 'rotate(-90deg)' : 'rotate(0deg)', transition:'transform .2s' }} />
+          </button>
+        )}
+      </div>
+      {!collapsed && (
+        <div style={{ padding:'20px' }}>
+          {children}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Dashboard principal ────────────────────────────────────────────────────────
 export default function Dashboard({ gastos: todosLosGastos, onNavigate, alertas = [] }) {
-  const { fmtMoney } = useApp()
+  const { fmtMoney, dashboardWidgets } = useApp()
   const { ingresos } = useIngresos()
   const money = fmtMoney
 
@@ -271,7 +311,6 @@ export default function Dashboard({ gastos: todosLosGastos, onNavigate, alertas 
     return p ? p.label : `${from} – ${to}`
   }, [periodo, from, to])
 
-  // Ingresos y métricas
   const totalIngresos = useMemo(() =>
     ingresos.filter(i => i.fecha >= from && i.fecha <= to).reduce((s,i)=>s+(i.monto||0),0),
     [ingresos, from, to]
@@ -285,152 +324,192 @@ export default function Dashboard({ gastos: todosLosGastos, onNavigate, alertas 
     return { count:h.length, total:tot, pct: total>0?Math.round(tot/total*100):0 }
   }, [gastos, total])
 
-  const card   = { background:'var(--surface)', borderRadius:16, padding:'20px', border:'1px solid var(--border)', boxShadow:'0 2px 12px rgba(0,0,0,.06)' }
-  const sTitle = { margin:'0 0 16px', fontSize:13, fontWeight:800, color:'var(--text-secondary)', textTransform:'uppercase', letterSpacing:'0.07em', display:'flex', alignItems:'center', gap:6 }
+  // Estilos base reutilizables
+  const card = { background:'var(--surface)', borderRadius:16, padding:'20px', border:'1px solid var(--border)', boxShadow:'0 2px 12px rgba(0,0,0,.06)' }
+
+  // ── Renderizador de cada widget por id ────────────────────────────────────
+  const renderWidget = (id) => {
+    switch (id) {
+
+      // ── Selector de período (siempre visible, sin collapse) ──
+      case 'periodo':
+        return (
+          <div key="periodo" style={card}>
+            <PeriodSelector periodo={periodo} setPeriodo={setPeriodo}
+              from={from} to={to} setFrom={setFrom} setTo={setTo} />
+          </div>
+        )
+
+      // ── KPIs principales ──
+      case 'kpis':
+        return (
+          <WidgetShell key="kpis" id="kpis" title="Métricas principales">
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))', gap:14 }}>
+              <div style={{ background:'var(--surface2)', borderRadius:12, padding:'16px', borderTop:'4px solid var(--accent)', border:'1px solid var(--border)', borderTopColor:'var(--accent)' }}>
+                <div style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:6 }}>Total gastado</div>
+                <div style={{ fontSize:24, fontWeight:800, color:'var(--text-primary)', lineHeight:1 }}>{money(total)}</div>
+                <div style={{ marginTop:6, display:'flex', alignItems:'center', flexWrap:'wrap' }}>
+                  <span style={{ fontSize:11, color:'var(--text-muted)' }}>{periodoLabel}</span>
+                  <DeltaBadge current={total} prev={totalAnt}/>
+                </div>
+              </div>
+              <div style={{ background:'var(--surface2)', borderRadius:12, padding:'16px', border:'1px solid var(--border)', borderTop:'4px solid #10b981', borderTopColor:'#10b981' }}>
+                <div style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:6 }}>N° de gastos</div>
+                <div style={{ fontSize:24, fontWeight:800, color:'var(--text-primary)', lineHeight:1 }}>{gastos.length}</div>
+                <div style={{ marginTop:6 }}>
+                  <span style={{ fontSize:11, color:'var(--text-muted)' }}>{periodoLabel}</span>
+                </div>
+              </div>
+              <div style={{ background:'var(--surface2)', borderRadius:12, padding:'16px', border:'1px solid var(--border)', borderTop:'4px solid #f59e0b', borderTopColor:'#f59e0b' }}>
+                <div style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:6 }}>Ticket promedio</div>
+                <div style={{ fontSize:24, fontWeight:800, color:'var(--text-primary)', lineHeight:1 }}>
+                  {money(gastos.length > 0 ? total/gastos.length : 0)}
+                </div>
+              </div>
+              <div style={{ background:'var(--surface2)', borderRadius:12, padding:'16px', border:'1px solid var(--border)', borderTop:'4px solid #8b5cf6', borderTopColor:'#8b5cf6' }}>
+                <div style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:6 }}>Promedio / día</div>
+                <div style={{ fontSize:24, fontWeight:800, color:'var(--text-primary)', lineHeight:1 }}>{money(promDia)}</div>
+                <div style={{ marginTop:4, display:'flex', alignItems:'center', gap:6, flexWrap:'wrap' }}>
+                  <span style={{ fontSize:11, color:'var(--text-muted)' }}>{dias} día{dias !== 1 ? 's' : ''}</span>
+                  <DeltaBadge current={promDia} prev={promDiaAnt} />
+                </div>
+              </div>
+            </div>
+          </WidgetShell>
+        )
+
+      // ── Alertas (sin shell — la gestión la hace AlertaBanners internamente) ──
+      case 'alertas':
+        return (
+          <div key="alertas">
+            <AlertaBanners alertas={alertas} onNavigate={onNavigate} />
+          </div>
+        )
+
+      // ── Ingresos vs Gastos ──
+      case 'ingresos_gastos': {
+        if (totalIngresos === 0 && gastos.length === 0) return null
+        // CTA cuando no hay ingresos registrados pero sí gastos
+        if (totalIngresos === 0) {
+          return (
+            <div key="ingresos_gastos" style={{ ...card, background:'#eff6ff', border:'1px solid #bfdbfe',
+              padding:'14px 20px', display:'flex', alignItems:'center', gap:14, cursor:'pointer' }}
+              onClick={() => onNavigate?.('ingresos')}>
+              <span style={{ fontSize:24 }}>💡</span>
+              <div>
+                <div style={{ fontSize:13, fontWeight:700, color:'#1e40af' }}>Registrá tus ingresos para ver el % gastado y el saldo disponible</div>
+                <div style={{ fontSize:12, color:'#3b82f6', marginTop:2 }}>Ir a Ingresos →</div>
+              </div>
+            </div>
+          )
+        }
+        return (
+          <WidgetShell key="ingresos_gastos" id="ingresos_gastos" title="Ingresos vs Gastos">
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(170px,1fr))', gap:14 }}>
+              <div style={{ background:'var(--surface2)', borderRadius:12, padding:'14px 16px', border:'1px solid var(--border)', borderTop:'3px solid #22c55e', borderTopColor:'#22c55e' }}>
+                <div style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:6 }}>Ingresos</div>
+                <div style={{ fontSize:21, fontWeight:800, color:'#22c55e' }}>{money(totalIngresos)}</div>
+                <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:3 }}>{periodoLabel}</div>
+              </div>
+              <div style={{ background:'var(--surface2)', borderRadius:12, padding:'14px 16px', border:'1px solid var(--border)', borderTop:`3px solid ${pctGastado>90?'#ef4444':pctGastado>70?'#f59e0b':'#22c55e'}`, borderTopColor:pctGastado>90?'#ef4444':pctGastado>70?'#f59e0b':'#22c55e' }}>
+                <div style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:6 }}>% Gastado</div>
+                <div style={{ fontSize:21, fontWeight:800, color:pctGastado>90?'#ef4444':pctGastado>70?'#f59e0b':'#22c55e' }}>{pctGastado}%</div>
+                <div style={{ marginTop:6, height:5, borderRadius:3, background:'var(--border)', overflow:'hidden' }}>
+                  <div style={{ height:'100%', width:`${Math.min(pctGastado,100)}%`, borderRadius:3, transition:'width .5s', background:pctGastado>90?'#ef4444':pctGastado>70?'#f59e0b':'#22c55e' }}/>
+                </div>
+              </div>
+              <div style={{ background:'var(--surface2)', borderRadius:12, padding:'14px 16px', border:'1px solid var(--border)', borderTop:`3px solid ${saldoDisp>=0?'#3b82f6':'#ef4444'}`, borderTopColor:saldoDisp>=0?'#3b82f6':'#ef4444' }}>
+                <div style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:6 }}>Saldo disponible</div>
+                <div style={{ fontSize:21, fontWeight:800, color:saldoDisp>=0?'#3b82f6':'#ef4444' }}>{saldoDisp>=0?'+':''}{money(saldoDisp)}</div>
+                <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:3 }}>{saldoDisp>=0?'Superávit':'Déficit'} del período</div>
+              </div>
+              {gastosHormiga.count > 0 && (
+                <div style={{ background:'var(--surface2)', borderRadius:12, padding:'14px 16px', border:'1px solid var(--border)', borderTop:'3px solid #8b5cf6', borderTopColor:'#8b5cf6' }}>
+                  <div style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:6 }}>Gastos hormiga</div>
+                  <div style={{ fontSize:21, fontWeight:800, color:'#8b5cf6' }}>{money(gastosHormiga.total)}</div>
+                  <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:3 }}>{gastosHormiga.count} gastos pequeños · {gastosHormiga.pct}% del total</div>
+                </div>
+              )}
+            </div>
+          </WidgetShell>
+        )
+      }
+
+      // ── Distribución por Tipo ──
+      case 'distribucion':
+        return (
+          <WidgetShell key="distribucion" id="distribucion" title="Distribución por Tipo"
+            icon={<IconEtiquetas size={14} aria-hidden="true" />}>
+            {byN1.length > 0 ? (
+              <>
+                <DoughnutN1 byN1={byN1} />
+                <div style={{ marginTop:16, display:'flex', flexDirection:'column', gap:10 }}>
+                  {byN1.map(({ name, value, pct }, i) => {
+                    const c = N1_COLORS[name] || { bg: n1Color(name,i), text: n1Color(name,i) }
+                    return (
+                      <div key={name}>
+                        <div style={{ display:'flex', justifyContent:'space-between', fontSize:12, marginBottom:4 }}>
+                          <span style={{ fontWeight:700, color: c.text || c.bg }}>{name}</span>
+                          <span style={{ color:'var(--text-muted)' }}>{money(value)} <b style={{ color:c.bg }}>({pct}%)</b></span>
+                        </div>
+                        <div style={{ height:5, background:'var(--border)', borderRadius:99 }}>
+                          <div style={{ height:'100%', width:`${pct}%`, background:c.bg, borderRadius:99, transition:'width .5s' }} />
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </>
+            ) : (
+              <p style={{ color:'var(--text-muted)', fontSize:13, textAlign:'center', padding:'30px 0', margin:0 }}>
+                Sin gastos en el período seleccionado.
+              </p>
+            )}
+          </WidgetShell>
+        )
+
+      // ── Top Subcategorías ──
+      case 'top_subcategorias':
+        return (
+          <WidgetShell key="top_subcategorias" id="top_subcategorias" title="Top Subcategorías">
+            {byN3.length > 0
+              ? <BarTopN3 byN3={byN3} />
+              : <p style={{ color:'var(--text-muted)', fontSize:13, textAlign:'center', padding:'30px 0', margin:0 }}>Sin datos suficientes.</p>
+            }
+          </WidgetShell>
+        )
+
+      // ── Top Ítems por Gasto ──
+      case 'top_items_gasto':
+        return (
+          <WidgetShell key="top_items_gasto" id="top_items_gasto" title="Top Ítems por Gasto"
+            icon={<IconTrofeo size={14} weight="fill" color="#f59e0b" aria-hidden="true" />}>
+            <ItemList items={topGasto} valueKey="monto" fmtValue={money}
+              paletteOffset={0} emptyMsg="Sin ítems registrados en el período." />
+          </WidgetShell>
+        )
+
+      // ── Top Ítems por Cantidad ──
+      case 'top_items_cantidad':
+        return (
+          <WidgetShell key="top_items_cantidad" id="top_items_cantidad" title="Top Ítems por Cantidad"
+            icon={<IconDinero size={14} aria-hidden="true" />}>
+            <ItemList items={topCantidad} valueKey="cantidad"
+              fmtValue={v => v % 1 === 0 ? String(v) : v.toFixed(2)}
+              paletteOffset={3} emptyMsg="Registrá cantidad en tus gastos para ver este ranking." />
+          </WidgetShell>
+        )
+
+      default: return null
+    }
+  }
+
+  // Renderizar widgets en el orden y visibilidad definidos por el usuario
+  const widgetsOrdenados = dashboardWidgets.filter(w => w.visible)
 
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
-
-      {/* Selector período */}
-      <div style={card}>
-        <PeriodSelector periodo={periodo} setPeriodo={setPeriodo} from={from} to={to} setFrom={setFrom} setTo={setTo}/>
-      </div>
-
-      {/* KPIs */}
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))', gap:16 }}>
-        <div style={{ ...card, borderTop:'4px solid var(--accent)' }}>
-          <div style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:6 }}>Total gastado</div>
-          <div style={{ fontSize:26, fontWeight:800, color:'var(--text-primary)', lineHeight:1 }}>{money(total)}</div>
-          <div style={{ marginTop:6, display:'flex', alignItems:'center' }}>
-            <span style={{ fontSize:11, color:'var(--text-muted)' }}>{periodoLabel}</span>
-            <DeltaBadge current={total} prev={totalAnt}/>
-          </div>
-        </div>
-        <div style={{ ...card, borderTop:'4px solid #10b981' }}>
-          <div style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:6 }}>N° de gastos</div>
-          <div style={{ fontSize:26, fontWeight:800, color:'var(--text-primary)', lineHeight:1 }}>{gastos.length}</div>
-          <div style={{ marginTop:6 }}>
-            <span style={{ fontSize:11, color:'var(--text-muted)' }}>{periodoLabel}</span>
-          </div>
-        </div>
-        <div style={{ ...card, borderTop:'4px solid #f59e0b' }}>
-          <div style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:6 }}>Ticket promedio</div>
-          <div style={{ fontSize:26, fontWeight:800, color:'var(--text-primary)', lineHeight:1 }}>
-            {money(gastos.length > 0 ? total/gastos.length : 0)}
-          </div>
-        </div>
-        <div style={{ ...card, borderTop:'4px solid #8b5cf6' }}>
-          <div style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:6 }}>
-            Promedio / día
-          </div>
-          <div style={{ fontSize:26, fontWeight:800, color:'var(--text-primary)', lineHeight:1 }}>
-            {money(promDia)}
-          </div>
-          <div style={{ marginTop:4, display:'flex', alignItems:'center', justifyContent:'flex-start', gap:6 }}>
-            <span style={{ fontSize:11, color:'var(--text-muted)' }}>{dias} día{dias !== 1 ? 's' : ''}</span>
-            <DeltaBadge current={promDia} prev={promDiaAnt} />
-          </div>
-        </div>
-      </div>
-
-      {/* ── Banners de alerta ── */}
-      <AlertaBanners alertas={alertas} onNavigate={onNavigate} />
-
-      {/* ── Panel Ingresos vs Gastos ── */}
-      {totalIngresos > 0 && (
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))', gap:14 }}>
-          <div style={{ ...card, borderTop:'3px solid #22c55e', padding:'18px 20px' }}>
-            <div style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:6 }}>Ingresos</div>
-            <div style={{ fontSize:22, fontWeight:800, color:'#22c55e' }}>{money(totalIngresos)}</div>
-            <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:3 }}>{periodoLabel}</div>
-          </div>
-          <div style={{ ...card, borderTop:`3px solid ${pctGastado>90?'#ef4444':pctGastado>70?'#f59e0b':'#22c55e'}`, padding:'18px 20px' }}>
-            <div style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:6 }}>% Gastado</div>
-            <div style={{ fontSize:22, fontWeight:800, color:pctGastado>90?'#ef4444':pctGastado>70?'#f59e0b':'#22c55e' }}>{pctGastado}%</div>
-            <div style={{ marginTop:6, height:5, borderRadius:3, background:'var(--border)', overflow:'hidden' }}>
-              <div style={{ height:'100%', width:`${Math.min(pctGastado,100)}%`, borderRadius:3, transition:'width .5s', background:pctGastado>90?'#ef4444':pctGastado>70?'#f59e0b':'#22c55e' }}/>
-            </div>
-          </div>
-          <div style={{ ...card, borderTop:`3px solid ${saldoDisp>=0?'#3b82f6':'#ef4444'}`, padding:'18px 20px' }}>
-            <div style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:6 }}>Saldo disponible</div>
-            <div style={{ fontSize:22, fontWeight:800, color:saldoDisp>=0?'#3b82f6':'#ef4444' }}>{saldoDisp>=0?'+':''}{money(saldoDisp)}</div>
-            <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:3 }}>{saldoDisp>=0?'Superávit':'Déficit'} del período</div>
-          </div>
-          {gastosHormiga.count > 0 && (
-            <div style={{ ...card, borderTop:'3px solid #8b5cf6', padding:'18px 20px' }}>
-              <div style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:6 }}>Gastos hormiga</div>
-              <div style={{ fontSize:22, fontWeight:800, color:'#8b5cf6' }}>{money(gastosHormiga.total)}</div>
-              <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:3 }}>{gastosHormiga.count} gastos pequeños · {gastosHormiga.pct}% del total</div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* CTA ingresos */}
-      {totalIngresos === 0 && gastos.length > 0 && (
-        <div style={{ ...card, background:'#eff6ff', border:'1px solid #bfdbfe', padding:'14px 20px',
-          display:'flex', alignItems:'center', gap:14, cursor:'pointer' }}
-          onClick={() => onNavigate?.('ingresos')}>
-          <span style={{ fontSize:24 }}>💡</span>
-          <div>
-            <div style={{ fontSize:13, fontWeight:700, color:'#1e40af' }}>Registrá tus ingresos para ver el % gastado y el saldo disponible</div>
-            <div style={{ fontSize:12, color:'#3b82f6', marginTop:2 }}>Ir a Ingresos →</div>
-          </div>
-        </div>
-      )}
-
-      {/* Sin datos */}
-      {gastos.length === 0 ? (
-        <div style={{ ...card, textAlign: 'center', padding: '40px 20px', color: 'var(--text-muted)' }}>
-          <IconCalendario size={40} color="var(--text-muted)" style={{ marginBottom: 10 }} aria-hidden="true" />
-          <p style={{ margin: 0, fontWeight: 700, fontSize: 15 }}>Sin gastos en este período</p>
-          <p style={{ margin: '6px 0 0', fontSize: 13 }}>Seleccioná otro rango de fechas o registrá nuevos gastos.</p>
-        </div>
-      ) : (<>
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))', gap: 20 }}>
-          <div style={card}>
-            <h3 style={sTitle}><IconEtiquetas size={14} aria-hidden="true" /> Distribución por Tipo</h3>
-            <DoughnutN1 byN1={byN1} />
-            <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {byN1.map(({ name, value, pct }, i) => {
-                const c = N1_COLORS[name] || { bg: n1Color(name,i), text: n1Color(name,i) }
-                return (
-                  <div key={name}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
-                      <span style={{ fontWeight: 700, color: c.text || c.bg }}>{name}</span>
-                      <span style={{ color: 'var(--text-muted)' }}>{money(value)} <b style={{ color: c.bg }}>({pct}%)</b></span>
-                    </div>
-                    <div style={{ height: 5, background: 'var(--border)', borderRadius: 99 }}>
-                      <div style={{ height: '100%', width: `${pct}%`, background: c.bg, borderRadius: 99, transition: 'width .5s' }} />
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-
-          <div style={card}>
-            <h3 style={sTitle}>Top Subcategorías</h3>
-            {byN3.length > 0
-              ? <BarTopN3 byN3={byN3} />
-              : <p style={{ color: 'var(--text-muted)', fontSize: 13, textAlign: 'center', padding: '30px 0', margin: 0 }}>Sin datos suficientes.</p>
-            }
-          </div>
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))', gap: 20 }}>
-          <div style={card}>
-            <h3 style={sTitle}><IconTrofeo size={14} weight="fill" color="#f59e0b" aria-hidden="true" /> Top Ítems por Gasto</h3>
-            <ItemList items={topGasto} valueKey="monto" fmtValue={money} paletteOffset={0} emptyMsg="Sin ítems registrados en el período." />
-          </div>
-          <div style={card}>
-            <h3 style={sTitle}><IconDinero size={14} aria-hidden="true" /> Top Ítems por Cantidad</h3>
-            <ItemList items={topCantidad} valueKey="cantidad" fmtValue={v => v % 1 === 0 ? String(v) : v.toFixed(2)} paletteOffset={3} emptyMsg="Registrá cantidad en tus gastos para ver este ranking." />
-          </div>
-        </div>
-
-      </>)}
+      {widgetsOrdenados.map(w => renderWidget(w.id)).filter(Boolean)}
     </div>
   )
 }

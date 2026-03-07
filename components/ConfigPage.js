@@ -9,7 +9,7 @@ import PresupuestosManager from './PresupuestosManager'
 import {
   IconTema, IconGlobo, IconIdioma, IconEtiquetas, IconRecurrentes, IconItems,
   IconClaro, IconOscuro, IconSistema, IconExito, IconGuardar, IconConfig, IconDinero,
-  IconPeligro, IconBorrar, IconTarjeta,
+  IconPeligro, IconBorrar, IconTarjeta, IconDashboard, IconArriba, IconAbajo,
 } from '../lib/icons'
 
 const CURRENCIES = [
@@ -35,6 +35,7 @@ const SECCIONES = [
   { id:'regional',   label:'Regional',      Icon:IconGlobo,      group:'Preferencias' },
   { id:'idioma',     label:'Idioma',        Icon:IconIdioma,     group:'Preferencias' },
   { id:'tarjeta',    label:'Tarjeta Crédito', Icon:IconTarjeta,   group:'Preferencias' },
+  { id:'dashboard',  label:'Dashboard',     Icon:IconDashboard,  group:'Preferencias' },
   { id:'catalogo',   label:'Catálogo',       Icon:IconEtiquetas,  group:'Datos' },
   { id:'unidades',   label:'Unidades',      Icon:IconItems,      group:'Datos' },
   { id:'recurrentes',   label:'Recurrentes',   Icon:IconRecurrentes, group:'Datos'       },
@@ -44,7 +45,7 @@ const SECCIONES = [
 
 export default function ConfigPage() {
   const supabase = createClient()
-  const { settings, saveSettings, loadingSettings } = useApp()
+  const { settings, saveSettings, loadingSettings, dashboardWidgets, saveDashboardWidgets } = useApp()
   const settingsInitRef = useRef(false)   // se inicializa local UNA sola vez al cargar desde DB
   const [seccion,       setSeccion]       = useState('apariencia')
   const [local,         setLocal]         = useState({ theme:'system', currency:'ARS', language:'es', dia_cierre_tarjeta: null })
@@ -116,7 +117,7 @@ export default function ConfigPage() {
 
   const inp = { padding:'9px 14px', border:'1.5px solid var(--border)', borderRadius:10, fontSize:14, background:'var(--surface)', outline:'none', color:'var(--text-primary)', fontFamily:'inherit', width:'100%' }
 
-  const showSave = !['catalogo','unidades','recurrentes','presupuestos','peligro'].includes(seccion)
+  const showSave = !['catalogo','unidades','recurrentes','presupuestos','peligro','dashboard'].includes(seccion)
 
   // Agrupar secciones
   const groups = {}
@@ -231,6 +232,96 @@ export default function ConfigPage() {
               )
             })()}
           </div>
+        </Section>
+      )
+
+      case 'dashboard': return (
+        <Section title="Widgets del Dashboard" Icon={IconDashboard}
+          subtitle="Elegí qué secciones mostrar y en qué orden aparecen. Los cambios se aplican de inmediato.">
+          <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+            {dashboardWidgets.map((widget, i) => (
+              <div key={widget.id} style={{
+                display:'flex', alignItems:'center', gap:12,
+                padding:'12px 14px', background:'var(--surface2)',
+                borderRadius:12, border:'1px solid var(--border)',
+                opacity: widget.visible || widget.alwaysOn ? 1 : 0.6,
+                transition:'opacity .15s',
+              }}>
+                {/* Número de orden */}
+                <span style={{ fontSize:12, fontWeight:800, color:'var(--text-muted)', minWidth:20, textAlign:'center', flexShrink:0 }}>
+                  {i + 1}
+                </span>
+
+                {/* Etiquetas */}
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontWeight:700, fontSize:13, color:'var(--text-primary)' }}>{widget.label}</div>
+                  <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:2, lineHeight:1.4 }}>{widget.description}</div>
+                </div>
+
+                {/* Toggle visible / Siempre */}
+                {widget.alwaysOn ? (
+                  <span style={{ fontSize:11, fontWeight:700, color:'#94a3b8', background:'#f1f5f9', padding:'5px 10px', borderRadius:20, border:'1px solid #e2e8f0', flexShrink:0, whiteSpace:'nowrap' }}>
+                    Siempre
+                  </span>
+                ) : (
+                  <button
+                    onClick={async () => {
+                      const next = dashboardWidgets.map((w, j) => j === i ? { ...w, visible: !w.visible } : w)
+                      await saveDashboardWidgets(next)
+                    }}
+                    style={{
+                      padding:'5px 12px', borderRadius:20, border:'none', cursor:'pointer',
+                      fontSize:12, fontWeight:700, flexShrink:0, transition:'all .15s', whiteSpace:'nowrap',
+                      background: widget.visible ? 'var(--accent)' : 'var(--surface)',
+                      color:      widget.visible ? '#fff'          : 'var(--text-muted)',
+                      outline:    `1.5px solid ${widget.visible ? 'var(--accent)' : 'var(--border)'}`,
+                    }}>
+                    {widget.visible ? '✓ Visible' : 'Oculto'}
+                  </button>
+                )}
+
+                {/* Botones reordenar */}
+                <div style={{ display:'flex', flexDirection:'column', gap:1, flexShrink:0 }}>
+                  <button
+                    disabled={i === 0}
+                    title="Mover arriba"
+                    onClick={async () => {
+                      const next = [...dashboardWidgets]
+                      ;[next[i - 1], next[i]] = [next[i], next[i - 1]]
+                      await saveDashboardWidgets(next)
+                    }}
+                    style={{
+                      border:'none', background:'none', padding:'2px', lineHeight:1,
+                      cursor: i === 0 ? 'not-allowed' : 'pointer',
+                      color:  i === 0 ? 'var(--border)' : 'var(--text-muted)',
+                      display:'flex', alignItems:'center',
+                    }}>
+                    <IconArriba size={13} aria-hidden="true" />
+                  </button>
+                  <button
+                    disabled={i === dashboardWidgets.length - 1}
+                    title="Mover abajo"
+                    onClick={async () => {
+                      const next = [...dashboardWidgets]
+                      ;[next[i], next[i + 1]] = [next[i + 1], next[i]]
+                      await saveDashboardWidgets(next)
+                    }}
+                    style={{
+                      border:'none', background:'none', padding:'2px', lineHeight:1,
+                      cursor: i === dashboardWidgets.length - 1 ? 'not-allowed' : 'pointer',
+                      color:  i === dashboardWidgets.length - 1 ? 'var(--border)' : 'var(--text-muted)',
+                      display:'flex', alignItems:'center',
+                    }}>
+                    <IconAbajo size={13} aria-hidden="true" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <p style={{ fontSize:12, color:'var(--text-muted)', margin:'10px 0 0', display:'flex', alignItems:'center', gap:6 }}>
+            <span aria-hidden="true">💡</span>
+            Desde el dashboard podés minimizar cada sección individualmente con el botón ˅.
+          </p>
         </Section>
       )
 
