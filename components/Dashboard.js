@@ -13,6 +13,7 @@ const CUR_MONTH = new Date().toISOString().slice(0, 7)
 
 // ── Selector de período ──────────────────────────────────────────────────────
 function PeriodSelector({ periodo, setPeriodo, from, to, setFrom, setTo }) {
+  const { t } = useApp()
   const handleSelect = (id) => {
     setPeriodo(id)
     if (id !== 'custom') { const rng = getPeriodo(id); setFrom(rng.from); setTo(rng.to) }
@@ -33,15 +34,15 @@ function PeriodSelector({ periodo, setPeriodo, from, to, setFrom, setTo }) {
           style={{ padding:'5px 13px', borderRadius:20, border:'none', cursor:'pointer', fontSize:13, fontWeight:600, transition:'all .15s', display:'flex', alignItems:'center', gap:4,
             background: periodo==='custom' ? 'var(--accent)' : 'var(--surface2)',
             color:      periodo==='custom' ? '#fff'         : 'var(--text-secondary)' }}>
-          Personalizado <IconCaretDown size={12} aria-hidden="true" />
+          {t('periodo.personalizado')} <IconCaretDown size={12} aria-hidden="true" />
         </button>
       </div>
       {periodo === 'custom' && (
         <div style={{ display:'flex', gap:8, marginTop:8, alignItems:'center', flexWrap:'wrap' }}>
-          <label style={{ fontSize:12, color:'var(--text-muted)', fontWeight:600 }}>Desde</label>
+          <label style={{ fontSize:12, color:'var(--text-muted)', fontWeight:600 }}>{t('periodo.desde')}</label>
           <input type="date" value={from} onChange={e => setFrom(e.target.value)}
             style={{ padding:'5px 9px', borderRadius:7, border:'1px solid var(--border)', background:'var(--surface2)', color:'var(--text-primary)', fontSize:13 }} />
-          <label style={{ fontSize:12, color:'var(--text-muted)', fontWeight:600 }}>Hasta</label>
+          <label style={{ fontSize:12, color:'var(--text-muted)', fontWeight:600 }}>{t('periodo.hasta')}</label>
           <input type="date" value={to} onChange={e => setTo(e.target.value)}
             style={{ padding:'5px 9px', borderRadius:7, border:'1px solid var(--border)', background:'var(--surface2)', color:'var(--text-primary)', fontSize:13 }} />
         </div>
@@ -220,11 +221,12 @@ function WidgetShell({ id, title, icon, collapsible=true, children }) {
 
 // ── Widget Manager — panel inline de visibilidad y orden ─────────────────────
 function WidgetManager({ widgets, onSave, onClose, isMobile }) {
+  const { t } = useApp()
   const moveWidget = async (i, dir) => {
     const next = [...widgets]
-    const t = i + dir
-    if (t < 0 || t >= next.length) return
-    ;[next[i], next[t]] = [next[t], next[i]]
+    const target = i + dir
+    if (target < 0 || target >= next.length) return
+    ;[next[i], next[target]] = [next[target], next[i]]
     await onSave(next)
   }
 
@@ -232,7 +234,7 @@ function WidgetManager({ widgets, onSave, onClose, isMobile }) {
     <div style={{ background:'var(--surface2)', borderRadius:12, border:'1px solid var(--border)', padding:'12px 14px' }}>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
         <span style={{ fontSize:11, fontWeight:800, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'.07em' }}>
-          Personalizar widgets
+          {t('dash.personalizar')}
         </span>
         <button onClick={onClose}
           style={{ border:'none', background:'none', cursor:'pointer', color:'var(--text-muted)', fontSize:16, lineHeight:1, padding:'2px 5px', borderRadius:4 }}>✕</button>
@@ -247,7 +249,7 @@ function WidgetManager({ widgets, onSave, onClose, isMobile }) {
                 {w.label}
               </span>
               {w.alwaysOn ? (
-                <span style={{ fontSize:11, color:'var(--text-muted)', flexShrink:0 }}>Siempre</span>
+                <span style={{ fontSize:11, color:'var(--text-muted)', flexShrink:0 }}>{t('dash.siempre')}</span>
               ) : (
                 <button
                   onClick={async () => {
@@ -290,7 +292,7 @@ function WidgetManager({ widgets, onSave, onClose, isMobile }) {
             ))}
           </div>
           <p style={{ margin:'8px 0 0', fontSize:11, color:'var(--text-muted)' }}>
-            ⠿ Arrastrá las tarjetas para cambiar el orden.
+            ⠿ {t('dash.dragHint')}
           </p>
         </>
       )}
@@ -300,6 +302,7 @@ function WidgetManager({ widgets, onSave, onClose, isMobile }) {
 
 // ── Mini widget: Cuotas activas ───────────────────────────────────────────────
 function CuotasWidget({ gastos, money, onNavigate }) {
+  const { t } = useApp()
   const compras = useMemo(() => {
     const cuotas = gastos.filter(g => g.compra_id && g.cuotas_total > 1)
     const map = {}
@@ -325,7 +328,7 @@ function CuotasWidget({ gastos, money, onNavigate }) {
 
   if (compras.length === 0) return (
     <div style={{ textAlign:'center', padding:'24px 0', color:'var(--text-muted)', fontSize:13 }}>
-      💳 Sin compras en cuotas activas
+      💳 {t('cuotas.sinActivas')}
     </div>
   )
 
@@ -335,15 +338,15 @@ function CuotasWidget({ gastos, money, onNavigate }) {
       {/* KPIs */}
       <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:8 }}>
         <div style={{ ...kpiSub, borderTop:'3px solid #ef4444' }}>
-          <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', marginBottom:3 }}>Deuda</div>
+          <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', marginBottom:3 }}>{t('cuotas.deuda')}</div>
           <div style={{ fontSize:17, fontWeight:800, color:'#ef4444', lineHeight:1 }}>{money(totalDeuda)}</div>
         </div>
         <div style={{ ...kpiSub, borderTop:'3px solid var(--accent)' }}>
-          <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', marginBottom:3 }}>Este mes</div>
-          <div style={{ fontSize:17, fontWeight:800, color:'var(--accent)', lineHeight:1 }}>{cuotasEsteMes} cuota{cuotasEsteMes!==1?'s':''}</div>
+          <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', marginBottom:3 }}>{t('cuotas.esteMes')}</div>
+          <div style={{ fontSize:17, fontWeight:800, color:'var(--accent)', lineHeight:1 }}>{cuotasEsteMes} {cuotasEsteMes!==1?t('cuotas.cuotasPlural'):t('cuotas.cuota')}</div>
         </div>
         <div style={{ ...kpiSub, borderTop:'3px solid #f59e0b' }}>
-          <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', marginBottom:3 }}>Activas</div>
+          <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', marginBottom:3 }}>{t('cuotas.activas')}</div>
           <div style={{ fontSize:17, fontWeight:800, color:'#f59e0b', lineHeight:1 }}>{compras.length}</div>
         </div>
       </div>
@@ -373,7 +376,7 @@ function CuotasWidget({ gastos, money, onNavigate }) {
       </div>
       <button onClick={() => onNavigate?.('cuotas')}
         style={{ width:'100%', padding:'7px', borderRadius:8, border:'1px solid var(--border)', background:'var(--surface2)', color:'var(--text-secondary)', fontSize:12, fontWeight:600, cursor:'pointer' }}>
-        Ver todas las cuotas →
+        {t('cuotas.verTodas')}
       </button>
     </div>
   )
@@ -381,6 +384,7 @@ function CuotasWidget({ gastos, money, onNavigate }) {
 
 // ── Mini widget: Inflación personal ───────────────────────────────────────────
 function InflacionWidget({ gastos, onNavigate }) {
+  const { t } = useApp()
   const { items, promedio } = useMemo(() => {
     const conCant = gastos.filter(g => g.cantidad > 0 && g.monto > 0)
     if (conCant.length < 5) return { items: [], promedio: 0 }
@@ -411,7 +415,7 @@ function InflacionWidget({ gastos, onNavigate }) {
 
   if (items.length === 0) return (
     <div style={{ textAlign:'center', padding:'24px 0', color:'var(--text-muted)', fontSize:13 }}>
-      📊 Registrá gastos con cantidad para ver tu inflación personal
+      📊 {t('inflacion.sinDatos')}
     </div>
   )
 
@@ -423,20 +427,20 @@ function InflacionWidget({ gastos, onNavigate }) {
       {/* KPIs */}
       <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:8 }}>
         <div style={{ ...kpiSub, borderTop:`3px solid ${pColor}` }}>
-          <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', marginBottom:3 }}>Inflación prom.</div>
+          <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', marginBottom:3 }}>{t('inflacion.promedio')}</div>
           <div style={{ fontSize:17, fontWeight:800, color:pColor, lineHeight:1 }}>{promedio>=0?'+':''}{promedio.toFixed(1)}%</div>
-          <div style={{ fontSize:10, color:'var(--text-muted)', marginTop:2 }}>desde primer registro</div>
+          <div style={{ fontSize:10, color:'var(--text-muted)', marginTop:2 }}>{t('inflacion.desdePrimero')}</div>
         </div>
         <div style={{ ...kpiSub, borderTop:'3px solid #8b5cf6' }}>
-          <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', marginBottom:3 }}>Ítems analizados</div>
+          <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', marginBottom:3 }}>{t('inflacion.itemsAnalizados')}</div>
           <div style={{ fontSize:17, fontWeight:800, color:'#8b5cf6', lineHeight:1 }}>{items.length}</div>
-          <div style={{ fontSize:10, color:'var(--text-muted)', marginTop:2 }}>con 2+ meses de datos</div>
+          <div style={{ fontSize:10, color:'var(--text-muted)', marginTop:2 }}>{t('inflacion.con2Meses')}</div>
         </div>
       </div>
 
       {/* Top inflados */}
       <div>
-        <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:5 }}>Más inflados</div>
+        <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:5 }}>{t('inflacion.masInflados')}</div>
         <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
           {items.slice(0, 5).map(item => {
             const c = item.variacion > 100 ? '#ef4444' : item.variacion > 50 ? '#f59e0b' : item.variacion > 0 ? '#f59e0b' : '#10b981'
@@ -454,7 +458,7 @@ function InflacionWidget({ gastos, onNavigate }) {
 
       <button onClick={() => onNavigate?.('inflacion')}
         style={{ width:'100%', padding:'7px', borderRadius:8, border:'1px solid var(--border)', background:'var(--surface2)', color:'var(--text-secondary)', fontSize:12, fontWeight:600, cursor:'pointer' }}>
-        Ver análisis completo →
+        {t('inflacion.verCompleto')}
       </button>
     </div>
   )
@@ -462,7 +466,7 @@ function InflacionWidget({ gastos, onNavigate }) {
 
 // ── Dashboard principal ────────────────────────────────────────────────────────
 export default function Dashboard({ gastos: todosLosGastos, onNavigate, alertas = [] }) {
-  const { fmtMoney, dashboardWidgets, saveDashboardWidgets } = useApp()
+  const { fmtMoney, dashboardWidgets, saveDashboardWidgets, t } = useApp()
   const { ingresos } = useIngresos()
   const money = fmtMoney
 
@@ -569,10 +573,10 @@ export default function Dashboard({ gastos: todosLosGastos, onNavigate, alertas 
 
       case 'kpis':
         return (
-          <WidgetShell id="kpis" title="Métricas principales">
+          <WidgetShell id="kpis" title={t('dash.metricasPrincipales')}>
             <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(130px,1fr))', gap:10 }}>
               <div style={kpiCard('var(--accent)')}>
-                <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:4 }}>Total gastado</div>
+                <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:4 }}>{t('dash.totalGastado')}</div>
                 <div style={{ fontSize:22, fontWeight:800, color:'var(--text-primary)', lineHeight:1 }}>{money(total)}</div>
                 <div style={{ marginTop:5, display:'flex', alignItems:'center', flexWrap:'wrap' }}>
                   <span style={{ fontSize:10, color:'var(--text-muted)' }}>{periodoLabel}</span>
@@ -580,21 +584,21 @@ export default function Dashboard({ gastos: todosLosGastos, onNavigate, alertas 
                 </div>
               </div>
               <div style={kpiCard('#10b981')}>
-                <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:4 }}>N° gastos</div>
+                <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:4 }}>{t('dash.nGastos')}</div>
                 <div style={{ fontSize:22, fontWeight:800, color:'var(--text-primary)', lineHeight:1 }}>{gastos.length}</div>
                 <div style={{ marginTop:5 }}><span style={{ fontSize:10, color:'var(--text-muted)' }}>{periodoLabel}</span></div>
               </div>
               <div style={kpiCard('#f59e0b')}>
-                <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:4 }}>Ticket prom.</div>
+                <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:4 }}>{t('dash.ticketProm')}</div>
                 <div style={{ fontSize:22, fontWeight:800, color:'var(--text-primary)', lineHeight:1 }}>
                   {money(gastos.length > 0 ? total/gastos.length : 0)}
                 </div>
               </div>
               <div style={kpiCard('#8b5cf6')}>
-                <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:4 }}>Prom./día</div>
+                <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:4 }}>{t('dash.promDia')}</div>
                 <div style={{ fontSize:22, fontWeight:800, color:'var(--text-primary)', lineHeight:1 }}>{money(promDia)}</div>
                 <div style={{ marginTop:5, display:'flex', alignItems:'center', flexWrap:'wrap', gap:4 }}>
-                  <span style={{ fontSize:10, color:'var(--text-muted)' }}>{dias} día{dias!==1?'s':''}</span>
+                  <span style={{ fontSize:10, color:'var(--text-muted)' }}>{dias} {dias!==1?t('common.dias'):t('common.dia')}</span>
                   <DeltaBadge current={promDia} prev={promDiaAnt}/>
                 </div>
               </div>
@@ -616,34 +620,34 @@ export default function Dashboard({ gastos: todosLosGastos, onNavigate, alertas 
             onClick={() => onNavigate?.('ingresos')}>
             <span style={{ fontSize:20 }}>💡</span>
             <div>
-              <div style={{ fontSize:13, fontWeight:700, color:'#1e40af' }}>Registrá tus ingresos para ver el % gastado y saldo disponible</div>
-              <div style={{ fontSize:12, color:'#3b82f6', marginTop:1 }}>Ir a Ingresos →</div>
+              <div style={{ fontSize:13, fontWeight:700, color:'#1e40af' }}>{t('dash.noIngresos')}</div>
+              <div style={{ fontSize:12, color:'#3b82f6', marginTop:1 }}>{t('dash.irIngresos')}</div>
             </div>
           </div>
         )
         return (
-          <WidgetShell id="ingresos_gastos" title="Ingresos vs Gastos">
+          <WidgetShell id="ingresos_gastos" title={t('dash.ingresosVsGastos')}>
             <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))', gap:10 }}>
               <div style={kpiCard('#22c55e')}>
-                <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', marginBottom:3 }}>Ingresos</div>
+                <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', marginBottom:3 }}>{t('dash.ingresos') || t('nav.ingresos')}</div>
                 <div style={{ fontSize:19, fontWeight:800, color:'#22c55e' }}>{money(totalIngresos)}</div>
                 <div style={{ fontSize:10, color:'var(--text-muted)', marginTop:2 }}>{periodoLabel}</div>
               </div>
               <div style={kpiCard(pctGastado>90?'#ef4444':pctGastado>70?'#f59e0b':'#22c55e')}>
-                <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', marginBottom:3 }}>% Gastado</div>
+                <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', marginBottom:3 }}>{t('dash.pctGastado')}</div>
                 <div style={{ fontSize:19, fontWeight:800, color:pctGastado>90?'#ef4444':pctGastado>70?'#f59e0b':'#22c55e' }}>{pctGastado}%</div>
                 <div style={{ marginTop:5, height:4, borderRadius:3, background:'var(--border)', overflow:'hidden' }}>
                   <div style={{ height:'100%', width:`${Math.min(pctGastado,100)}%`, borderRadius:3, transition:'width .5s', background:pctGastado>90?'#ef4444':pctGastado>70?'#f59e0b':'#22c55e' }}/>
                 </div>
               </div>
               <div style={kpiCard(saldoDisp>=0?'#3b82f6':'#ef4444')}>
-                <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', marginBottom:3 }}>Saldo</div>
+                <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', marginBottom:3 }}>{t('dash.saldo')}</div>
                 <div style={{ fontSize:19, fontWeight:800, color:saldoDisp>=0?'#3b82f6':'#ef4444' }}>{saldoDisp>=0?'+':''}{money(saldoDisp)}</div>
-                <div style={{ fontSize:10, color:'var(--text-muted)', marginTop:2 }}>{saldoDisp>=0?'Superávit':'Déficit'}</div>
+                <div style={{ fontSize:10, color:'var(--text-muted)', marginTop:2 }}>{saldoDisp>=0?t('dash.superavit'):t('dash.deficit')}</div>
               </div>
               {gastosHormiga.count > 0 && (
                 <div style={kpiCard('#8b5cf6')}>
-                  <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', marginBottom:3 }}>Hormiga</div>
+                  <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', marginBottom:3 }}>{t('dash.hormiga')}</div>
                   <div style={{ fontSize:19, fontWeight:800, color:'#8b5cf6' }}>{money(gastosHormiga.total)}</div>
                   <div style={{ fontSize:10, color:'var(--text-muted)', marginTop:2 }}>{gastosHormiga.count} gastos · {gastosHormiga.pct}%</div>
                 </div>
@@ -655,21 +659,21 @@ export default function Dashboard({ gastos: todosLosGastos, onNavigate, alertas 
 
       case 'cuotas':
         return (
-          <WidgetShell id="cuotas" title="Cuotas activas" icon={<span style={{ fontSize:12 }}>💳</span>}>
+          <WidgetShell id="cuotas" title={t('dash.cuotasActivas')} icon={<span style={{ fontSize:12 }}>💳</span>}>
             <CuotasWidget gastos={todosLosGastos} money={money} onNavigate={onNavigate} />
           </WidgetShell>
         )
 
       case 'inflacion':
         return (
-          <WidgetShell id="inflacion" title="Inflación personal" icon={<span style={{ fontSize:12 }}>📊</span>}>
+          <WidgetShell id="inflacion" title={t('dash.inflacionPersonal')} icon={<span style={{ fontSize:12 }}>📊</span>}>
             <InflacionWidget gastos={todosLosGastos} onNavigate={onNavigate} />
           </WidgetShell>
         )
 
       case 'distribucion':
         return (
-          <WidgetShell id="distribucion" title="Distribución por Tipo" icon={<IconEtiquetas size={13} aria-hidden="true" />}>
+          <WidgetShell id="distribucion" title={t('dash.distribucionTipo')} icon={<IconEtiquetas size={13} aria-hidden="true" />}>
             {byN1.length > 0 ? (
               <>
                 <DoughnutN1 byN1={byN1} />
@@ -691,32 +695,32 @@ export default function Dashboard({ gastos: todosLosGastos, onNavigate, alertas 
                 </div>
               </>
             ) : (
-              <p style={{ color:'var(--text-muted)', fontSize:13, textAlign:'center', padding:'24px 0', margin:0 }}>Sin gastos en el período.</p>
+              <p style={{ color:'var(--text-muted)', fontSize:13, textAlign:'center', padding:'24px 0', margin:0 }}>{t('dash.sinGastos')}</p>
             )}
           </WidgetShell>
         )
 
       case 'top_subcategorias':
         return (
-          <WidgetShell id="top_subcategorias" title="Top Subcategorías">
+          <WidgetShell id="top_subcategorias" title={t('dash.topSubcategorias')}>
             {byN3.length > 0
               ? <BarTopN3 byN3={byN3} />
-              : <p style={{ color:'var(--text-muted)', fontSize:13, textAlign:'center', padding:'24px 0', margin:0 }}>Sin datos suficientes.</p>
+              : <p style={{ color:'var(--text-muted)', fontSize:13, textAlign:'center', padding:'24px 0', margin:0 }}>{t('dash.sinDatos')}</p>
             }
           </WidgetShell>
         )
 
       case 'top_items_gasto':
         return (
-          <WidgetShell id="top_items_gasto" title="Top Ítems por Gasto" icon={<IconTrofeo size={13} weight="fill" color="#f59e0b" aria-hidden="true" />}>
-            <ItemList items={topGasto} valueKey="monto" fmtValue={money} paletteOffset={0} emptyMsg="Sin ítems en el período." />
+          <WidgetShell id="top_items_gasto" title={t('dash.topItemsGasto')} icon={<IconTrofeo size={13} weight="fill" color="#f59e0b" aria-hidden="true" />}>
+            <ItemList items={topGasto} valueKey="monto" fmtValue={money} paletteOffset={0} emptyMsg={t('dash.sinItems')} />
           </WidgetShell>
         )
 
       case 'top_items_cantidad':
         return (
-          <WidgetShell id="top_items_cantidad" title="Top Ítems por Cantidad" icon={<IconDinero size={13} aria-hidden="true" />}>
-            <ItemList items={topCantidad} valueKey="cantidad" fmtValue={v => v%1===0?String(v):v.toFixed(2)} paletteOffset={3} emptyMsg="Registrá cantidad en tus gastos para ver este ranking." />
+          <WidgetShell id="top_items_cantidad" title={t('dash.topItemsCantidad')} icon={<IconDinero size={13} aria-hidden="true" />}>
+            <ItemList items={topCantidad} valueKey="cantidad" fmtValue={v => v%1===0?String(v):v.toFixed(2)} paletteOffset={3} emptyMsg={t('dash.sinCantidad')} />
           </WidgetShell>
         )
 
