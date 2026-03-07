@@ -408,6 +408,44 @@ export default function ExpenseForm({ initial, onSave, onCancel }) {
                 ))}
               </div>
 
+              {/* Leyenda cierre — solo si es crédito */}
+              {medioPago === 'credito' && (
+                <div style={{ marginBottom:14 }}>
+                  {diaCierre ? (() => {
+                    const hoy = new Date()
+                    const [y, m] = [hoy.getFullYear(), hoy.getMonth()]
+                    const maxD = new Date(y, m + 1, 0).getDate()
+                    const dEfec = Math.min(diaCierre, maxD)
+                    const thisMes = new Date(y, m, dEfec)
+                    const proxCierre = thisMes >= hoy
+                      ? thisMes
+                      : (() => {
+                          const nm = m + 1 > 11 ? 0 : m + 1
+                          const ny = m + 1 > 11 ? y + 1 : y
+                          return new Date(ny, nm, Math.min(diaCierre, new Date(ny, nm + 1, 0).getDate()))
+                        })()
+                    const fmtProx = proxCierre.toLocaleDateString('es-AR', { day:'numeric', month:'long', year:'numeric' })
+                    return (
+                      <div style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 11px', background:'#e0f2fe', borderRadius:8, border:'1px solid #bae6fd', fontSize:12 }}>
+                        <span>🗓️</span>
+                        <span style={{ color:'#0369a1' }}>
+                          <strong>Cierre: día {diaCierre}</strong> de cada mes · Próximo:{' '}
+                          <strong>{fmtProx}</strong>
+                        </span>
+                      </div>
+                    )
+                  })() : (
+                    <div style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 11px', background:'var(--surface2)', borderRadius:8, border:'1px solid var(--border)', fontSize:12 }}>
+                      <span>ℹ️</span>
+                      <span style={{ color:'var(--text-muted)' }}>
+                        Sin fecha de cierre configurada — primera cuota: mes siguiente.{' '}
+                        <strong style={{ color:'var(--accent)' }}>Configurar en Ajustes → Tarjeta de Crédito</strong>
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Cuotas — solo si es crédito */}
               {medioPago === 'credito' && (
                 <div>
