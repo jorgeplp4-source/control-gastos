@@ -23,8 +23,9 @@ export default function QuickAddPage() {
   const [n3, setN3]       = useState('')
   const [n4, setN4]       = useState('')
   const [fecha, setFecha] = useState(today)
-  const [saving, setSaving] = useState(false)
-  const [done, setDone]   = useState(false)
+  const [saving, setSaving]     = useState(false)
+  const [done, setDone]         = useState(false)
+  const [saveError, setSaveError] = useState(null)
 
   const opts_n1 = useMemo(() => uniq(categories.map(c => c.n1)), [categories])
   const opts_n2 = useMemo(() => uniq(categories.filter(c => c.n1 === n1).map(c => c.n2)), [categories, n1])
@@ -36,13 +37,25 @@ export default function QuickAddPage() {
   const handleSave = async () => {
     if (!monto || !n1 || !n4) return
     setSaving(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    await supabase.from('gastos').insert({
+    setSaveError(null)
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (!user || authError) {
+      setSaving(false)
+      setSaveError('Sin sesión activa. Iniciá sesión y volvé a intentarlo.')
+      return
+    }
+
+    const { error: insertError } = await supabase.from('gastos').insert({
       user_id: user.id, n1, n2, n3, n4,
       monto: parseFloat(monto), cantidad: 1, unidad: 'unidad',
       fecha, observaciones: '(Registro rápido)',
     })
     setSaving(false)
+    if (insertError) {
+      setSaveError('Error al guardar. Intentá de nuevo.')
+      return
+    }
     setDone(true)
     setTimeout(() => {
       setMonto(''); setN1(''); setN2(''); setN3(''); setN4(''); setDone(false)
@@ -142,6 +155,13 @@ export default function QuickAddPage() {
           <IconExito size={18} weight="fill" aria-hidden="true" />
           {saving ? 'Registrando…' : 'Registrar gasto'}
         </button>
+
+        {/* Error de guardado */}
+        {saveError && (
+          <p style={{ textAlign: 'center', marginTop: 12, color: '#ef4444', fontSize: 13, fontWeight: 600 }}>
+            {saveError}
+          </p>
+        )}
 
         {/* Link app completa */}
         <p style={{ textAlign: 'center', marginTop: 16 }}>

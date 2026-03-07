@@ -23,7 +23,7 @@
       "name": "Ver gastos",
       "short_name": "Listado",
       "description": "Ver todos los gastos",
-      "url": "/listado",
+      "url": "/",
       "icons": [{ "src": "/icons/shortcut-list.png", "sizes": "96x96" }]
     }
   ],

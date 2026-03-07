@@ -59,7 +59,9 @@ export async function PUT(request) {
   const { data: cat } = await supabase
     .from('categorias').select('id, user_id, es_sistema').eq('id', id).single()
   if (!cat) return NextResponse.json({ error: 'No encontrada' }, { status: 404 })
-  if (cat.user_id !== null && cat.user_id !== user.id)
+  if (cat.es_sistema)
+    return NextResponse.json({ error: 'No se pueden modificar categorías del sistema' }, { status: 403 })
+  if (cat.user_id !== user.id)
     return NextResponse.json({ error: 'Sin permiso' }, { status: 403 })
 
   // Campos permitidos para editar
@@ -83,9 +85,11 @@ export async function DELETE(request) {
   if (!id) return NextResponse.json({ error: 'id requerido' }, { status: 400 })
 
   const { data: cat } = await supabase
-    .from('categorias').select('nombre, nivel, user_id').eq('id', id).single()
+    .from('categorias').select('nombre, nivel, user_id, es_sistema').eq('id', id).single()
   if (!cat) return NextResponse.json({ error: 'No encontrada' }, { status: 404 })
-  if (cat.user_id !== null && cat.user_id !== user.id)
+  if (cat.es_sistema)
+    return NextResponse.json({ error: 'No se pueden eliminar categorías del sistema' }, { status: 403 })
+  if (cat.user_id !== user.id)
     return NextResponse.json({ error: 'Sin permiso' }, { status: 403 })
 
   // Verificar gastos asociados
