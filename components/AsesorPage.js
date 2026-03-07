@@ -321,15 +321,15 @@ export default function AsesorPage({ gastos = [] }) {
       </div>
 
       <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:20 }}>
-        {TABS.map(t => (
-          <button key={t.id} onClick={() => setSeccion(t.id)}
+        {TABS.map(tab => (
+          <button key={tab.id} onClick={() => setSeccion(tab.id)}
             style={{ padding:'8px 16px', borderRadius:99, border:'none', cursor:'pointer',
               fontSize:13, fontWeight:700, transition:'all .15s',
-              background: seccion===t.id ? 'var(--accent)' : 'var(--surface2)',
-              color:       seccion===t.id ? '#fff'          : 'var(--text-secondary)',
-              boxShadow:   seccion===t.id ? '0 2px 8px rgba(99,102,241,.35)' : 'none',
+              background: seccion===tab.id ? 'var(--accent)' : 'var(--surface2)',
+              color:       seccion===tab.id ? '#fff'          : 'var(--text-secondary)',
+              boxShadow:   seccion===tab.id ? '0 2px 8px rgba(99,102,241,.35)' : 'none',
               display:'flex', alignItems:'center', gap:5 }}>
-            {t.emoji} {t.label}
+            {tab.emoji} {tab.label}
           </button>
         ))}
       </div>

@@ -54,7 +54,7 @@ export default function ConfigPage() {
   const [isMobile,      setIsMobile]      = useState(false)
   // Zona de Peligro
   const [confirmando,   setConfirmando]   = useState(false)
-  const [textoConfirm,  setTextoConfirm]  = useState('')
+  const [textoPassword, setTextoPassword] = useState('')
   const [borrando,      setBorrando]      = useState(false)
   const [errorBorrado,  setErrorBorrado]  = useState(null)
   const [exito,         setExito]         = useState(false)
@@ -92,12 +92,19 @@ export default function ConfigPage() {
   }
 
   const handleBorrarTodo = async () => {
-    if (textoConfirm !== 'BORRAR') return
+    if (!textoPassword) return
     setBorrando(true)
     setErrorBorrado(null)
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Sin sesión')
+      // Verificar contraseña antes de borrar
+      const { error: authErr } = await supabase.auth.signInWithPassword({ email: user.email, password: textoPassword })
+      if (authErr) {
+        setErrorBorrado('Contraseña incorrecta. Verificá e intentá de nuevo.')
+        setBorrando(false)
+        return
+      }
       const uid = user.id
       // Borrar en orden respetando FK: primero hijos, luego padres
       const tablas = ['notificaciones', 'presupuestos', 'recurring_expenses', 'ingresos', 'gastos', 'items']
@@ -107,7 +114,7 @@ export default function ConfigPage() {
       }
       setExito(true)
       setConfirmando(false)
-      setTextoConfirm('')
+      setTextoPassword('')
     } catch (err) {
       setErrorBorrado(err.message || 'Error al borrar')
     } finally {
@@ -355,7 +362,7 @@ export default function ConfigPage() {
               {/* Body */}
               <div style={{ background:'var(--surface)', padding:'16px 18px' }}>
                 {!confirmando ? (
-                  <button onClick={() => { setConfirmando(true); setTextoConfirm(''); setErrorBorrado(null) }}
+                  <button onClick={() => { setConfirmando(true); setTextoPassword(''); setErrorBorrado(null) }}
                     style={{ padding:'9px 18px', borderRadius:9, border:'1.5px solid #dc2626', background:'transparent', color:'#dc2626', fontWeight:700, fontSize:13, cursor:'pointer', display:'flex', alignItems:'center', gap:7, transition:'all .15s' }}
                     onMouseEnter={e => { e.currentTarget.style.background = '#fef2f2' }}
                     onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}>
@@ -364,27 +371,29 @@ export default function ConfigPage() {
                 ) : (
                   <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
                     <div style={{ fontSize:13, color:'var(--text-secondary)', fontWeight:600 }}>
-                      Para confirmar, escribí <code style={{ background:'#fee2e2', color:'#dc2626', padding:'1px 6px', borderRadius:5, fontWeight:800 }}>BORRAR</code> en el campo:
+                      Para confirmar, ingresá tu <strong style={{ color:'#dc2626' }}>contraseña</strong>:
                     </div>
                     <input
-                      value={textoConfirm}
-                      onChange={e => setTextoConfirm(e.target.value)}
-                      placeholder="Escribí BORRAR para confirmar"
-                      style={{ padding:'9px 14px', border:`1.5px solid ${textoConfirm==='BORRAR'?'#dc2626':'var(--border)'}`, borderRadius:9, fontSize:13, background:'var(--surface2)', color:'var(--text-primary)', fontFamily:'inherit', outline:'none' }}
+                      type="password"
+                      value={textoPassword}
+                      onChange={e => { setTextoPassword(e.target.value); setErrorBorrado(null) }}
+                      placeholder="Tu contraseña de acceso"
+                      autoComplete="current-password"
+                      style={{ padding:'9px 14px', border:`1.5px solid ${errorBorrado?'#dc2626':'var(--border)'}`, borderRadius:9, fontSize:13, background:'var(--surface2)', color:'var(--text-primary)', fontFamily:'inherit', outline:'none' }}
                     />
                     {errorBorrado && (
                       <div style={{ fontSize:12, color:'#dc2626', fontWeight:600 }}>⚠️ {errorBorrado}</div>
                     )}
                     <div style={{ display:'flex', gap:10 }}>
-                      <button onClick={() => { setConfirmando(false); setTextoConfirm(''); setErrorBorrado(null) }}
+                      <button onClick={() => { setConfirmando(false); setTextoPassword(''); setErrorBorrado(null) }}
                         style={{ padding:'8px 16px', borderRadius:9, border:'1.5px solid var(--border)', background:'var(--surface2)', color:'var(--text-secondary)', fontWeight:700, fontSize:13, cursor:'pointer' }}>
                         Cancelar
                       </button>
                       <button onClick={handleBorrarTodo}
-                        disabled={textoConfirm !== 'BORRAR' || borrando}
-                        style={{ padding:'8px 18px', borderRadius:9, border:'none', background:textoConfirm==='BORRAR'?'#dc2626':'#fca5a5', color:'#fff', fontWeight:800, fontSize:13, cursor:textoConfirm==='BORRAR'&&!borrando?'pointer':'not-allowed', display:'flex', alignItems:'center', gap:7, transition:'background .15s' }}>
+                        disabled={!textoPassword || borrando}
+                        style={{ padding:'8px 18px', borderRadius:9, border:'none', background:textoPassword&&!borrando?'#dc2626':'#fca5a5', color:'#fff', fontWeight:800, fontSize:13, cursor:textoPassword&&!borrando?'pointer':'not-allowed', display:'flex', alignItems:'center', gap:7, transition:'background .15s' }}>
                         <IconBorrar size={13} />
-                        {borrando ? 'Borrando…' : 'Confirmar borrado'}
+                        {borrando ? 'Verificando…' : 'Confirmar borrado'}
                       </button>
                     </div>
                   </div>
