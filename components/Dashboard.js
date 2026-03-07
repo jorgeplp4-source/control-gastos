@@ -218,8 +218,16 @@ function WidgetShell({ id, title, icon, collapsible=true, children }) {
   )
 }
 
-// ── Widget Manager — panel inline de visibilidad ──────────────────────────────
-function WidgetManager({ widgets, onSave, onClose }) {
+// ── Widget Manager — panel inline de visibilidad y orden ─────────────────────
+function WidgetManager({ widgets, onSave, onClose, isMobile }) {
+  const moveWidget = async (i, dir) => {
+    const next = [...widgets]
+    const t = i + dir
+    if (t < 0 || t >= next.length) return
+    ;[next[i], next[t]] = [next[t], next[i]]
+    await onSave(next)
+  }
+
   return (
     <div style={{ background:'var(--surface2)', borderRadius:12, border:'1px solid var(--border)', padding:'12px 14px' }}>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
@@ -229,24 +237,63 @@ function WidgetManager({ widgets, onSave, onClose }) {
         <button onClick={onClose}
           style={{ border:'none', background:'none', cursor:'pointer', color:'var(--text-muted)', fontSize:16, lineHeight:1, padding:'2px 5px', borderRadius:4 }}>✕</button>
       </div>
-      <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
-        {widgets.map((w, i) => w.alwaysOn ? null : (
-          <button key={w.id}
-            onClick={async () => {
-              const next = widgets.map((x, j) => j === i ? { ...x, visible: !x.visible } : x)
-              await onSave(next)
-            }}
-            style={{ padding:'5px 12px', borderRadius:20, border:'none', cursor:'pointer', fontSize:12, fontWeight:700, transition:'all .15s',
-              background: w.visible ? 'var(--accent)' : 'var(--surface)',
-              color:      w.visible ? '#fff'          : 'var(--text-muted)',
-              outline:    `1.5px solid ${w.visible ? 'var(--accent)' : 'var(--border)'}` }}>
-            {w.visible ? '✓ ' : ''}{w.label}
-          </button>
-        ))}
-      </div>
-      <p style={{ margin:'8px 0 0', fontSize:11, color:'var(--text-muted)' }}>
-        Para reordenar: Configuración → Dashboard
-      </p>
+
+      {isMobile ? (
+        /* Mobile: lista con toggle + ↑↓ */
+        <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+          {widgets.map((w, i) => (
+            <div key={w.id} style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 10px', background:'var(--surface)', borderRadius:9, border:'1px solid var(--border)' }}>
+              <span style={{ flex:1, fontSize:12, fontWeight:700, color:'var(--text-primary)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                {w.label}
+              </span>
+              {w.alwaysOn ? (
+                <span style={{ fontSize:11, color:'var(--text-muted)', flexShrink:0 }}>Siempre</span>
+              ) : (
+                <button
+                  onClick={async () => {
+                    const next = widgets.map((x, j) => j === i ? { ...x, visible: !x.visible } : x)
+                    await onSave(next)
+                  }}
+                  style={{ padding:'3px 10px', borderRadius:20, border:'none', cursor:'pointer', fontSize:11, fontWeight:700, flexShrink:0, transition:'all .15s',
+                    background: w.visible ? 'var(--accent)' : 'var(--surface2)',
+                    color:      w.visible ? '#fff'          : 'var(--text-muted)' }}>
+                  {w.visible ? '✓' : '—'}
+                </button>
+              )}
+              <div style={{ display:'flex', gap:2, flexShrink:0 }}>
+                <button onClick={() => moveWidget(i, -1)} disabled={i === 0}
+                  style={{ padding:'3px 7px', border:'1px solid var(--border)', borderRadius:6, background:'var(--surface2)', cursor: i===0 ? 'not-allowed':'pointer',
+                    color:'var(--text-muted)', fontSize:13, opacity: i===0 ? 0.3 : 1, lineHeight:1 }}>↑</button>
+                <button onClick={() => moveWidget(i, 1)} disabled={i === widgets.length - 1}
+                  style={{ padding:'3px 7px', border:'1px solid var(--border)', borderRadius:6, background:'var(--surface2)', cursor: i===widgets.length-1 ? 'not-allowed':'pointer',
+                    color:'var(--text-muted)', fontSize:13, opacity: i===widgets.length-1 ? 0.3 : 1, lineHeight:1 }}>↓</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        /* Desktop: pills para toggle + hint de arrastre */
+        <>
+          <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
+            {widgets.map((w, i) => w.alwaysOn ? null : (
+              <button key={w.id}
+                onClick={async () => {
+                  const next = widgets.map((x, j) => j === i ? { ...x, visible: !x.visible } : x)
+                  await onSave(next)
+                }}
+                style={{ padding:'5px 12px', borderRadius:20, border:'none', cursor:'pointer', fontSize:12, fontWeight:700, transition:'all .15s',
+                  background: w.visible ? 'var(--accent)' : 'var(--surface)',
+                  color:      w.visible ? '#fff'          : 'var(--text-muted)',
+                  outline:    `1.5px solid ${w.visible ? 'var(--accent)' : 'var(--border)'}` }}>
+                {w.visible ? '✓ ' : ''}{w.label}
+              </button>
+            ))}
+          </div>
+          <p style={{ margin:'8px 0 0', fontSize:11, color:'var(--text-muted)' }}>
+            ⠿ Arrastrá las tarjetas para cambiar el orden.
+          </p>
+        </>
+      )}
     </div>
   )
 }
@@ -425,6 +472,8 @@ export default function Dashboard({ gastos: todosLosGastos, onNavigate, alertas 
   const [to,   setTo]         = useState(initRng.to)
   const [showManager, setShowManager] = useState(false)
   const [isMobile, setIsMobile]       = useState(false)
+  const [draggedId, setDraggedId]     = useState(null)
+  const [dragOverId, setDragOverId]   = useState(null)
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 680)
@@ -432,6 +481,20 @@ export default function Dashboard({ gastos: todosLosGastos, onNavigate, alertas 
     window.addEventListener('resize', check)
     return () => window.removeEventListener('resize', check)
   }, [])
+
+  // ── Drag & drop para reordenar widgets ──
+  const handleDragEnd = async () => {
+    if (draggedId && dragOverId && draggedId !== dragOverId) {
+      const next = [...dashboardWidgets]
+      const fi = next.findIndex(w => w.id === draggedId)
+      const ti = next.findIndex(w => w.id === dragOverId)
+      const [moved] = next.splice(fi, 1)
+      next.splice(ti, 0, moved)
+      await saveDashboardWidgets(next)
+    }
+    setDraggedId(null)
+    setDragOverId(null)
+  }
 
   // ── Datos del período ──
   const gastos = useMemo(() => todosLosGastos.filter(g => g.fecha >= from && g.fecha <= to), [todosLosGastos, from, to])
@@ -685,7 +748,7 @@ export default function Dashboard({ gastos: todosLosGastos, onNavigate, alertas 
         {/* Panel inline de personalización */}
         {showManager && (
           <div style={{ marginTop:12, paddingTop:12, borderTop:'1px solid var(--border)' }}>
-            <WidgetManager widgets={dashboardWidgets} onSave={saveDashboardWidgets} onClose={() => setShowManager(false)} />
+            <WidgetManager widgets={dashboardWidgets} onSave={saveDashboardWidgets} onClose={() => setShowManager(false)} isMobile={isMobile} />
           </div>
         )}
       </div>
@@ -696,8 +759,25 @@ export default function Dashboard({ gastos: todosLosGastos, onNavigate, alertas 
           if (w.id === 'periodo') return null // ya renderizado arriba
           const content = renderWidget(w.id)
           if (!content) return null
+          const isDragging = !isMobile && draggedId === w.id
+          const isOver     = !isMobile && dragOverId === w.id && draggedId !== w.id
           return (
-            <div key={w.id} style={{ gridColumn: (isMobile || w.fullWidth) ? '1 / -1' : undefined }}>
+            <div
+              key={w.id}
+              draggable={!isMobile}
+              onDragStart={!isMobile ? () => setDraggedId(w.id) : undefined}
+              onDragOver={!isMobile ? (e) => { e.preventDefault(); if (dragOverId !== w.id) setDragOverId(w.id) } : undefined}
+              onDragEnd={!isMobile ? handleDragEnd : undefined}
+              onDrop={!isMobile ? (e) => e.preventDefault() : undefined}
+              style={{
+                gridColumn:  (isMobile || w.fullWidth) ? '1 / -1' : undefined,
+                opacity:     isDragging ? 0.4 : 1,
+                outline:     isOver ? '2px dashed var(--accent)' : '2px solid transparent',
+                borderRadius: 14,
+                transition:  'opacity .15s',
+                cursor:      !isMobile ? 'grab' : 'default',
+                userSelect:  'none',
+              }}>
               {content}
             </div>
           )

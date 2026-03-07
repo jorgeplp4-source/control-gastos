@@ -9,7 +9,7 @@ import PresupuestosManager from './PresupuestosManager'
 import {
   IconTema, IconGlobo, IconIdioma, IconEtiquetas, IconRecurrentes, IconItems,
   IconClaro, IconOscuro, IconSistema, IconExito, IconGuardar, IconConfig, IconDinero,
-  IconPeligro, IconBorrar, IconTarjeta, IconDashboard, IconArriba, IconAbajo,
+  IconPeligro, IconBorrar, IconTarjeta, IconDashboard,
 } from '../lib/icons'
 
 const CURRENCIES = [
@@ -237,7 +237,7 @@ export default function ConfigPage() {
 
       case 'dashboard': return (
         <Section title="Widgets del Dashboard" Icon={IconDashboard}
-          subtitle="Elegí qué secciones mostrar y en qué orden aparecen. Los cambios se aplican de inmediato.">
+          subtitle="Elegí qué secciones mostrar. Para reordenar, arrastrá las tarjetas desde el dashboard.">
           <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
             {dashboardWidgets.map((widget, i) => (
               <div key={widget.id} style={{
@@ -280,47 +280,12 @@ export default function ConfigPage() {
                   </button>
                 )}
 
-                {/* Botones reordenar */}
-                <div style={{ display:'flex', flexDirection:'column', gap:1, flexShrink:0 }}>
-                  <button
-                    disabled={i === 0}
-                    title="Mover arriba"
-                    onClick={async () => {
-                      const next = [...dashboardWidgets]
-                      ;[next[i - 1], next[i]] = [next[i], next[i - 1]]
-                      await saveDashboardWidgets(next)
-                    }}
-                    style={{
-                      border:'none', background:'none', padding:'2px', lineHeight:1,
-                      cursor: i === 0 ? 'not-allowed' : 'pointer',
-                      color:  i === 0 ? 'var(--border)' : 'var(--text-muted)',
-                      display:'flex', alignItems:'center',
-                    }}>
-                    <IconArriba size={13} aria-hidden="true" />
-                  </button>
-                  <button
-                    disabled={i === dashboardWidgets.length - 1}
-                    title="Mover abajo"
-                    onClick={async () => {
-                      const next = [...dashboardWidgets]
-                      ;[next[i], next[i + 1]] = [next[i + 1], next[i]]
-                      await saveDashboardWidgets(next)
-                    }}
-                    style={{
-                      border:'none', background:'none', padding:'2px', lineHeight:1,
-                      cursor: i === dashboardWidgets.length - 1 ? 'not-allowed' : 'pointer',
-                      color:  i === dashboardWidgets.length - 1 ? 'var(--border)' : 'var(--text-muted)',
-                      display:'flex', alignItems:'center',
-                    }}>
-                    <IconAbajo size={13} aria-hidden="true" />
-                  </button>
-                </div>
               </div>
             ))}
           </div>
           <p style={{ fontSize:12, color:'var(--text-muted)', margin:'10px 0 0', display:'flex', alignItems:'center', gap:6 }}>
             <span aria-hidden="true">💡</span>
-            Desde el dashboard podés minimizar cada sección individualmente con el botón ˅.
+            En el dashboard: botón <b>⚙ Widgets</b> para mostrar/ocultar, y arrastrá las tarjetas para reordenar.
           </p>
         </Section>
       )
